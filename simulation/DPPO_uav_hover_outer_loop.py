@@ -5,6 +5,7 @@ import os
 import sys
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
@@ -149,6 +150,7 @@ if __name__ == '__main__':
     uav_param.pqr0 = np.array([0, 0, 0])
     uav_param.dt = DT
     uav_param.time_max = 10
+    uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [-5, 5]])
     '''Parameter list of the quadrotor'''
 
     '''Parameter list of the attitude controller'''
@@ -162,9 +164,11 @@ if __name__ == '__main__':
     att_ctrl_param.dim = 3
     att_ctrl_param.dt = DT
     att_ctrl_param.ctrl0 = np.array([0., 0., 0.])
+    att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
     '''Parameter list of the attitude controller'''
 
-    env = env(uav_param, att_ctrl_param, target=np.array([-2, 4, 3]))
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-2, 3, 4]))
+    env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 
     if TRAIN:
@@ -224,7 +228,7 @@ if __name__ == '__main__':
                 action_from_actor = agent.evaluate(env.current_state).numpy()
                 action = agent.action_linear_trans(action_from_actor.flatten())  # 将actor输出动作转换到实际动作范围
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
-                env.update(action, dis=uncertainty)  # 环境更新的动作必须是实际物理动作
+                env.update(action)  # 环境更新的动作必须是实际物理动作
                 # env.uav_vis.render(uav_pos=env.uav_pos(),
                 #                    uav_pos_ref=env.pos_ref,
                 #                    uav_att=env.uav_att(),

@@ -2,7 +2,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-import rospy
+# import rospy
 from environment.envs.UAV.uav import uav_param
 from environment.envs.UAV.FNTSMC import fntsmc_param, fntsmc_pos, fntsmc_att
 import os
@@ -62,13 +62,13 @@ def test_uav_hover_outer_loop():
     from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop
     # rospy.init_node(name='env_test', anonymous=False)
 
-    env = uav_hover_outer_loop(uav_param, att_ctrl_param, target=np.array([5, 5, 5]))
+    env = uav_hover_outer_loop(uav_param, fntsmc_param(), att_ctrl_param, target=np.array([5, 5, 5]))
     num = 0
     while num < 1:
         env.reset()
         r = 0
-        while (not env.is_terminal) and (not rospy.is_shutdown()):
-            env.update(action=np.array([1, 0.5, 1]), dis=np.zeros(3))
+        while not env.is_terminal:
+            env.step_update(action=np.array([1, 0.5, 1]))
             r += env.reward
 
         num += 1

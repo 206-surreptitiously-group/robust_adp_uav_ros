@@ -88,6 +88,8 @@ class UAV:
         self.pmy_p3 = (self.height - 2 * self.y_offset) / dx
         '''opencv visualization'''
 
+        self.msg_print_flag = True
+
     def dis2pixel(self, coord, flag: str, offset):
         if flag == 'xoy':
             x = self.x_offset + (coord[0] - self.x_min) * self.pmx_p1
@@ -413,41 +415,50 @@ class UAV:
     def is_pos_out(self) -> bool:
         _flag = False
         if (self.x < self.x_min) or (self.x > self.x_max):
-            print('XOUT!!!!!')
+            if self.msg_print_flag:
+                print('XOUT!!!!!')
             _flag = True
-        if (self.x < self.y_min) or (self.x > self.y_max):
-            print('YOUT!!!!!')
+        if (self.y < self.y_min) or (self.y > self.y_max):
+            if self.msg_print_flag:
+                print('YOUT!!!!!')
             _flag = True
-        if (self.x < self.z_min) or (self.x > self.z_max):
-            print('ZOUT!!!!!')
+        if (self.z < self.z_min) or (self.z > self.z_max):
+            if self.msg_print_flag:
+                print('ZOUT!!!!!')
             _flag = True
         return _flag
 
     def is_att_out(self) -> bool:
         _flag = False
         if (self.phi < self.att_zone[0][0]) or (self.phi > self.att_zone[0][1]):
-            print('Phi OUT!!!!!')
+            if self.msg_print_flag:
+                print('Phi OUT!!!!!')
             _flag = True
         if (self.theta < self.att_zone[1][0]) or (self.theta > self.att_zone[1][1]):
-            print('Theta OUT!!!!!')
+            if self.msg_print_flag:
+                print('Theta OUT!!!!!')
             _flag = True
         if (self.psi < self.att_zone[2][0]) or (self.psi > self.att_zone[2][1]):
-            print('Yaw OUT!!!!!')
+            if self.msg_print_flag:
+                print('Yaw OUT!!!!!')
             _flag = True
         return _flag
 
     def is_episode_Terminal(self) -> tuple:
         _terminal = False
         if self.time > self.time_max - self.dt / 2:
-            print('Time out...')
+            if self.msg_print_flag:
+                print('Time out...')
             self.terminal_flag = 1
             _terminal = True
         if self.is_pos_out():
-            print('Position out...')
+            if self.msg_print_flag:
+                print('Position out...')
             self.terminal_flag = 2
             _terminal = True
         if self.is_att_out():
-            print('Attitude out...')
+            if self.msg_print_flag:
+                print('Attitude out...')
             self.terminal_flag = 3
             _terminal = True
         return _terminal, self.terminal_flag

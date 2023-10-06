@@ -138,13 +138,13 @@ class Worker(mp.Process):
             while index < self.buffer.batch_size:
                 # self.env.reset_random()
                 self.env.reset()
-                while not self.env.is_terminal:  # and (not rospy.is_shutdown()):
+                while not self.env.is_terminal:
                     self.env.current_state = self.env.next_state.copy()
                     action_from_actor, s, a_log_prob, s_value = self.choose_action(
                         self.env.current_state)  # 返回三个没有梯度的tensor
                     action_from_actor = action_from_actor.numpy()
                     action = self.action_linear_trans(action_from_actor.flatten())  # 将动作转换到实际范围上
-                    self.env.update(action.astype(np.float32), np.zeros(3))  # 环境更新的action需要是物理的action
+                    self.env.step_update(action.astype(np.float32))  # 环境更新的action需要是物理的action
                     sumr += self.env.reward
                     self.buffer.append(s=self.env.current_state,
                                        a=action_from_actor,
@@ -194,10 +194,6 @@ class Distributed_PPO:
         self.action_dim_nn = env.action_dim
         self.action_range = env.action_range
         '''RL env'''
-
-        '''ros vis'''
-        # self.rate = rospy.Rate(1 / self.env.dt)
-        '''ros vis'''
 
         '''DPPO'''
         self.actor_lr = actor_lr
@@ -252,13 +248,13 @@ class Distributed_PPO:
                         print('测试: ', i)
                     # self.env.reset_random()
                     self.env.reset()
-                    while not self.env.is_terminal:  # and (not rospy.is_shutdown()):
+                    while not self.env.is_terminal:
                         self.env.current_state = self.env.next_state.copy()
                         action_from_actor = self.evaluate(self.env.current_state)
                         action_from_actor = action_from_actor.numpy()
                         action = self.action_linear_trans(action_from_actor.flatten())  # 将动作转换到实际范围上
                         # print(action_from_actor, action)
-                        self.env.update(action.astype(np.float32), np.zeros(3))  # 环境更新的action需要是物理的action
+                        self.env.step_update(action.astype(np.float32))  # 环境更新的action需要是物理的action
                         r += self.env.reward
                         # self.env.uav_vis.render(uav_pos=self.env.uav_pos(),
                         #                         uav_pos_ref=self.env.pos_ref,
