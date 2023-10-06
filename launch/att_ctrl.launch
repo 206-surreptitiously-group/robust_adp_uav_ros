@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+    <!--  launch uav attitude contorl node  -->
+    <node name="test_att_ctrl" pkg="robust_adp_uav_ros" type="test_att_ctrl.py" output="screen"/>
+
+    <!--  start rviz  -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find robust_adp_uav_ros)/launch/vis.rviz" required="true"/>
+</launch>

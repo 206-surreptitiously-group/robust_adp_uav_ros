@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+    <!--  launch uav hover contorl node  -->
+    <node name="DPPO_uav_hover_outer_loop" pkg="robust_adp_uav_ros" type="DPPO_uav_hover_outer_loop.py" output="screen"/>
+
+    <!--  start rviz  -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find robust_adp_uav_ros)/launch/vis.rviz" required="true"/>
+</launch>
