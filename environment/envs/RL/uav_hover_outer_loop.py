@@ -30,23 +30,22 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
 
         '''state action limitation'''
         self.static_gain = 1.0
-        # 并非要求数据一定在这个区间内，只是给一个归一化的系数而已，让 NN 不同维度的数据不要相差太大
-        # 不要出现：某些维度的数据在 [-3, 3]，另外维度在 [0.05, 0.9] 这种情况即可
-        self.e_pos_max = np.array([5., 5., 5.])
-        self.e_pos_min = -np.array([5., 5., 5.])
+
+        self.e_pos_max = np.array([10., 10., 5.])
+        self.e_pos_min = -np.array([10., 10., 5.])
         self.vel_max = np.array([3., 3., 3.])
         self.vel_min = -np.array([3., 3., 3.])
-        self.u_min = -5
-        self.u_max = 5
+        self.u_min = -10
+        self.u_max = 10
         '''state action limitation'''
 
         '''rl_base'''
-        self.state_dim = 3 + 3  # ex ey ez vx vy vz
+        self.state_dim = 3 + 3 + 3  # ex ey ez vx vy vz
         self.state_num = [math.inf for _ in range(self.state_dim)]
         self.state_step = [None for _ in range(self.state_dim)]
         self.state_space = [None for _ in range(self.state_dim)]
         self.state_range = [[-self.static_gain, self.static_gain] for _ in range(self.state_dim)]
-        self.isStateContinuous = [True for _ in range(self.state_dim)]
+        self.is_state_continuous = [True for _ in range(self.state_dim)]
 
         self.initial_state = self.state_norm()
         self.current_state = self.initial_state.copy()
@@ -56,8 +55,10 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         self.action_num = [math.inf for _ in range(self.action_dim)]
         self.action_step = [None for _ in range(self.action_dim)]
         self.action_space = [None for _ in range(self.action_dim)]
-        self.action_range = [[self.u_min, self.u_max] for _ in range(self.action_dim)]
-        self.isActionContinuous = [True for _ in range(self.action_dim)]
+        self.action_range = [[self.u_min, self.u_max],
+                             [self.u_min, self.u_max],
+                             [self.u_min, self.u_max]]
+        self.is_action_continuous = [True for _ in range(self.action_dim)]
 
         self.initial_action = [0.0 for _ in range(self.action_dim)]
         self.current_action = self.initial_action.copy()
@@ -71,15 +72,16 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         """
         RL状态归一化
         """
-        norm_error = self.error / (self.e_pos_max - self.e_pos_min) * self.static_gain
-        norm_vel = self.uav_vel() / (self.vel_max - self.vel_min) * self.static_gain
-        norm_state = np.concatenate((norm_error, norm_vel))
+        norm_error = 2 * self.error / (self.e_pos_max - self.e_pos_min) * self.static_gain
+        norm_pos = (2 * self.uav_pos() - self.pos_zone[:, 1] - self.pos_zone[:, 0]) / (self.pos_zone[:, 1] - self.pos_zone[:, 0]) * self.static_gain
+        norm_vel = 2 * self.uav_vel() / (self.vel_max - self.vel_min) * self.static_gain
+        norm_state = np.concatenate((norm_error, norm_pos, norm_vel))
 
         return norm_state
 
     def get_reward(self, param=None):
         """
-        计算奖励时用归一化后的状态和动作，才能保证系数设置有效
+        计算奖励时用归一化后的状态和动作
         """
         Qx, Qv, R = 1, 0, 0
         r1 = - np.linalg.norm(self.next_state[:3]) ** 2 * Qx
@@ -89,8 +91,9 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         r3 = - np.linalg.norm(norm_action) ** 2 * R
 
         r4 = 0
-        if self.terminal_flag == 1:
-            r4 = - 2000
+        # 如果因为越界终止，则给剩余时间可能取得的最大惩罚
+        if self.is_pos_out() or self.is_att_out():
+            r4 = - (self.time_max - self.time) / self.dt * (Qx + Qv + R) * 0.5
 
         self.reward = r1 + r2 + r3 + r4
 
@@ -108,6 +111,9 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         # 外环由RL控制给出
         self.pos_ctrl.control = action.copy()
         phi_d, theta_d, uf = self.uo_2_ref_angle_throttle()
+        phi_d = np.clip(phi_d, self.att_zone[0][0], self.att_zone[0][1])
+        theta_d = np.clip(theta_d, self.att_zone[1][0], self.att_zone[1][1])
+        # phi_d, theta_d, uf = action
 
         # 计算内环控制所需参数
         att_ref_old = self.att_ref
@@ -122,6 +128,7 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
 
         self.update(action=a)
         self.error = self.uav_pos() - self.pos_ref
+        self.vx, self.vy, self.vz = np.clip(self.uav_vel(), self.vel_min, self.vel_max)   # 速度限制
 
         self.is_Terminal()
         self.next_state = self.state_norm()
@@ -187,7 +194,7 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
 
     def reset_random(self):
         """
-        定点控制可以选择起始点和目标点之一随机
+        定点控制可以选择起始点和目标点随机
         """
         self.reset()
         self.pos_ref = self.generate_random_point(offset=1.0)  # 随即目标点

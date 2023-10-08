@@ -7,6 +7,8 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
+from environment.Color import Color
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 # import rospy
@@ -46,17 +48,17 @@ class PPOActorCritic(nn.Module):
         self.action_var = torch.full((self.action_dim,), self.action_std_init * self.action_std_init)
 
         self.actor = nn.Sequential(
-            nn.Linear(self.state_dim, 64),
+            nn.Linear(self.state_dim, 128),
             nn.Tanh(),
-            nn.Linear(64, 64),
+            nn.Linear(128, 64),
             nn.Tanh(),
             nn.Linear(64, self.action_dim),
             nn.Tanh()
         )
         self.critic = nn.Sequential(
-            nn.Linear(self.state_dim, 64),
+            nn.Linear(self.state_dim, 128),
             nn.Tanh(),
-            nn.Linear(64, 64),
+            nn.Linear(128, 64),
             nn.Tanh(),
             nn.Linear(64, 1),
         )
@@ -150,7 +152,7 @@ if __name__ == '__main__':
     uav_param.pqr0 = np.array([0, 0, 0])
     uav_param.dt = DT
     uav_param.time_max = 10
-    uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [-5, 5]])
+    uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
     '''Parameter list of the quadrotor'''
 
     '''Parameter list of the attitude controller'''
@@ -167,7 +169,7 @@ if __name__ == '__main__':
     att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
     '''Parameter list of the attitude controller'''
 
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-2, 3, 4]))
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 4, 2]))
     env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 
@@ -175,15 +177,17 @@ if __name__ == '__main__':
         '''1. 启动多进程'''
         mp.set_start_method('spawn', force=True)
         '''2. 定义DPPO参数'''
-        process_num = 40
-        actor_lr = 3e-4 / 10
-        critic_lr = 1e-3 / 10
-        action_std = 0.6
-        k_epo_init = 100
+        process_num = 50
+        actor_lr = 3e-4 / process_num
+        critic_lr = 1e-3 / process_num
+        action_std = 0.9
+        k_epo_init = int(100 / process_num * 1.1)
         agent = DPPO(env=env, actor_lr=actor_lr, critic_lr=critic_lr, num_of_pro=process_num, path=simulation_path)
         '''3. 重新加载全局网络和优化器，这是必须的操作，考虑到不同学习环境设计不同的网络结构，训练前要重写PPOActorCritic'''
         agent.global_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'GlobalPolicy',
                                              simulation_path)
+        agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'EvalPolicy',
+                                           simulation_path)
         agent.global_policy.share_memory()
         agent.optimizer = SharedAdam([
             {'params': agent.global_policy.actor.parameters(), 'lr': actor_lr},
@@ -219,7 +223,7 @@ if __name__ == '__main__':
         # 加载模型参数文件
         agent.load_models(optPath + 'DPPO_uav_hover_outer_loop/')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
-
+        env.msg_print_flag = True
         test_num = 1
         for _ in range(test_num):
             env.reset()
@@ -228,13 +232,17 @@ if __name__ == '__main__':
                 action_from_actor = agent.evaluate(env.current_state).numpy()
                 action = agent.action_linear_trans(action_from_actor.flatten())  # 将actor输出动作转换到实际动作范围
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
-                env.update(action)  # 环境更新的动作必须是实际物理动作
+                env.step_update(action)  # 环境更新的动作必须是实际物理动作
                 # env.uav_vis.render(uav_pos=env.uav_pos(),
                 #                    uav_pos_ref=env.pos_ref,
                 #                    uav_att=env.uav_att(),
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
+                # env.image = env.image_copy.copy()
+                # env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
+                # env.draw_error(env.uav_pos(), env.pos_ref[0:3])
+                # env.show_image(False)
         env.collector.plot_pos()
         env.collector.plot_vel()
         env.collector.plot_throttle()

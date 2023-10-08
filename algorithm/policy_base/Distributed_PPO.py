@@ -3,6 +3,8 @@ from common.common_cls import *
 import torch.multiprocessing as mp
 import pandas as pd
 
+from environment.Color import Color
+
 """
 	Note: CPU is recommended for DPPO.
 """
@@ -125,7 +127,7 @@ class Worker(mp.Process):
         max_training_timestep = int(self.env.time_max / self.env.dt) * 10000  # 5000 最长回合的数据
         # max_training_timestep = 5000
         action_std_decay_freq = int(8e5)  # 每隔这么多个 timestep 把探索方差减小点
-        action_std_decay_rate = 0.005  # linearly decay action_std (action_std = action_std - action_std_decay_rate)
+        action_std_decay_rate = 0.001  # linearly decay action_std (action_std = action_std - action_std_decay_rate)
         min_action_std = 0.6  # 方差最小不能小于 0.4，不管啥时候，都得适当探索
         train_num = 0
         timestep = 0
@@ -138,7 +140,7 @@ class Worker(mp.Process):
             while index < self.buffer.batch_size:
                 # self.env.reset_random()
                 self.env.reset()
-                while not self.env.is_terminal:
+                while not self.env.is_terminal:  # and (not rospy.is_shutdown()):
                     self.env.current_state = self.env.next_state.copy()
                     action_from_actor, s, a_log_prob, s_value = self.choose_action(
                         self.env.current_state)  # 返回三个没有梯度的tensor
@@ -195,6 +197,10 @@ class Distributed_PPO:
         self.action_range = env.action_range
         '''RL env'''
 
+        '''ros vis'''
+        # self.rate = rospy.Rate(1 / self.env.dt)
+        '''ros vis'''
+
         '''DPPO'''
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
@@ -232,7 +238,7 @@ class Distributed_PPO:
                 break
             if self.global_training_num.value % 50 == 0:
                 print('Training count:, ', self.global_training_num.value)
-            if self.global_training_num.value % 300 == 0:
+            if self.global_training_num.value % 500 == 0:
                 # 	print('Training count:, ', self.global_training_num.value)
                 '''主进程不停地测试，每次随机选择 500 个回合。保存每次记录开始时候的网络，直至循环完成或者强制停止'''
                 training_num_temp = self.global_training_num.value  # 记录一下当前的数字，因为测试和学习同时进行的，号码容易窜
@@ -248,7 +254,8 @@ class Distributed_PPO:
                         print('测试: ', i)
                     # self.env.reset_random()
                     self.env.reset()
-                    while not self.env.is_terminal:
+                    self.env.draw_init_image()
+                    while not self.env.is_terminal:  # and (not rospy.is_shutdown()):
                         self.env.current_state = self.env.next_state.copy()
                         action_from_actor = self.evaluate(self.env.current_state)
                         action_from_actor = action_from_actor.numpy()
@@ -262,7 +269,11 @@ class Distributed_PPO:
                         #                         uav_att_ref=self.env.att_ref,
                         #                         d=4 * self.env.d)
                         # self.rate.sleep()
-                        # self.env.show_dynamic_image(isWait=False)  # 画图
+                        self.env.image = self.env.image_copy.copy()
+                        self.env.draw_3d_points_projection(np.atleast_2d([self.env.uav_pos()]), [Color().Red])
+                        self.env.draw_3d_points_projection(np.atleast_2d([self.env.pos_ref[0:3]]), [Color().Green])
+                        self.env.draw_error(self.env.uav_pos(), self.env.pos_ref[0:3])
+                        self.env.show_image(False)
                 print("Average Reward: " + str(r / eval_num))
                 # error.append(np.linalg.norm(self.env.error))
                 # cv.destroyAllWindows()
