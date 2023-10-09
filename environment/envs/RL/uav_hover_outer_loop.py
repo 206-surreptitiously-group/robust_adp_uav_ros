@@ -40,7 +40,7 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         '''state action limitation'''
 
         '''rl_base'''
-        self.state_dim = 3 + 3 + 3  # ex ey ez vx vy vz
+        self.state_dim = 3 + 3  # ex ey ez vx vy vz
         self.state_num = [math.inf for _ in range(self.state_dim)]
         self.state_step = [None for _ in range(self.state_dim)]
         self.state_space = [None for _ in range(self.state_dim)]
@@ -73,9 +73,10 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         RL状态归一化
         """
         norm_error = 2 * self.error / (self.e_pos_max - self.e_pos_min) * self.static_gain
-        norm_pos = (2 * self.uav_pos() - self.pos_zone[:, 1] - self.pos_zone[:, 0]) / (self.pos_zone[:, 1] - self.pos_zone[:, 0]) * self.static_gain
+        # norm_pos = (2 * self.uav_pos() - self.pos_zone[:, 1] - self.pos_zone[:, 0]) / (self.pos_zone[:,
+        # 1] - self.pos_zone[:, 0]) * self.static_gain
         norm_vel = 2 * self.uav_vel() / (self.vel_max - self.vel_min) * self.static_gain
-        norm_state = np.concatenate((norm_error, norm_pos, norm_vel))
+        norm_state = np.concatenate((norm_error, norm_vel))
 
         return norm_state
 
@@ -93,7 +94,7 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         r4 = 0
         # 如果因为越界终止，则给剩余时间可能取得的最大惩罚
         if self.is_pos_out() or self.is_att_out():
-            r4 = - (self.time_max - self.time) / self.dt * (Qx + Qv + R) * 0.5
+            r4 = - (self.time_max - self.time) / self.dt * (Qx + Qv + R)
 
         self.reward = r1 + r2 + r3 + r4
 

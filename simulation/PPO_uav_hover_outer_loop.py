@@ -4,9 +4,11 @@ import os
 import sys
 import time
 
+from matplotlib import pyplot as plt
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
-import rospy
+# import rospy
 from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop as env
 from environment.envs.UAV.ref_cmd import generate_uncertainty
 from environment.envs.UAV.uav import uav_param
@@ -113,7 +115,7 @@ class PPOActorCritic(nn.Module):
 
 
 if __name__ == '__main__':
-    rospy.init_node(name='PPO_uav_hover_outer_loop', anonymous=False)
+    # rospy.init_node(name='PPO_uav_hover_outer_loop', anonymous=False)
 
     log_dir = '../datasave/log/'
     if not os.path.exists(log_dir):
@@ -142,6 +144,7 @@ if __name__ == '__main__':
     uav_param.pqr0 = np.array([0, 0, 0])
     uav_param.dt = DT
     uav_param.time_max = 10
+    uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
     '''Parameter list of the quadrotor'''
 
     '''Parameter list of the attitude controller'''
@@ -155,10 +158,12 @@ if __name__ == '__main__':
     att_ctrl_param.dim = 3
     att_ctrl_param.dt = DT
     att_ctrl_param.ctrl0 = np.array([0., 0., 0.])
+    att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
     '''Parameter list of the attitude controller'''
 
-    env = env(uav_param, att_ctrl_param, target=np.array([3, 3, 3]))
-    rate = rospy.Rate(1 / env.dt)
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 4, 2]))
+    env.msg_print_flag = False  # 别疯狂打印出界了
+    # rate = rospy.Rate(1 / env.dt)
 
     if TRAIN:
         action_std_init = 0.8
@@ -199,7 +204,7 @@ if __name__ == '__main__':
                 action_from_actor = action_from_actor.numpy()
                 action = agent.action_linear_trans(action_from_actor.flatten())
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
-                env.update(action, dis=uncertainty)  # 环境更新的动作必须是实际物理动作
+                env.step_update(action)  # 环境更新的动作必须是实际物理动作
                 sumr += env.reward
                 '''存数'''
                 agent.buffer.append(s=env.current_state,
@@ -251,18 +256,26 @@ if __name__ == '__main__':
                     policy_old=policy_old,
                     path=simulation_path)
         agent.policy.load_state_dict(torch.load('../datasave/network/'))
-        test_num = 10
+        test_num = 1
         for _ in range(test_num):
             env.reset()
-            while (not env.is_terminal) and (not rospy.is_shutdown()):
+            while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 _action_from_actor = agent.evaluate(env.current_state).numpy()
                 _action = agent.action_linear_trans(_action_from_actor.cpu().flatten())  # 将actor输出动作转换到实际动作范围
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
-                env.update(_action, dis=uncertainty)  # 环境更新的动作必须是实际物理动作
-                env.uav_vis.render(uav_pos=env.uav_pos(),
-                                   uav_pos_ref=env.pos_ref,
-                                   uav_att=env.uav_att(),
-                                   uav_att_ref=env.att_ref,
-                                   d=4 * env.d)  # to make it clearer, we increase the size 4 times
-                rate.sleep()
+                env.step_update(_action)  # 环境更新的动作必须是实际物理动作
+                # env.uav_vis.render(uav_pos=env.uav_pos(),
+                #                    uav_pos_ref=env.pos_ref,
+                #                    uav_att=env.uav_att(),
+                #                    uav_att_ref=env.att_ref,
+                #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
+                # rate.sleep()
+                # env.image = env.image_copy.copy()
+                # env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
+                # env.draw_error(env.uav_pos(), env.pos_ref[0:3])
+                # env.show_image(False)
+        env.collector.plot_pos()
+        env.collector.plot_vel()
+        env.collector.plot_throttle()
+        plt.show()

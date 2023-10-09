@@ -127,7 +127,7 @@ class Worker(mp.Process):
         max_training_timestep = int(self.env.time_max / self.env.dt) * 10000  # 5000 最长回合的数据
         # max_training_timestep = 5000
         action_std_decay_freq = int(8e5)  # 每隔这么多个 timestep 把探索方差减小点
-        action_std_decay_rate = 0.001  # linearly decay action_std (action_std = action_std - action_std_decay_rate)
+        action_std_decay_rate = 0.05  # linearly decay action_std (action_std = action_std - action_std_decay_rate)
         min_action_std = 0.6  # 方差最小不能小于 0.4，不管啥时候，都得适当探索
         train_num = 0
         timestep = 0
@@ -238,7 +238,7 @@ class Distributed_PPO:
                 break
             if self.global_training_num.value % 50 == 0:
                 print('Training count:, ', self.global_training_num.value)
-            if self.global_training_num.value % 500 == 0:
+            if self.global_training_num.value % 300 == 0:
                 # 	print('Training count:, ', self.global_training_num.value)
                 '''主进程不停地测试，每次随机选择 500 个回合。保存每次记录开始时候的网络，直至循环完成或者强制停止'''
                 training_num_temp = self.global_training_num.value  # 记录一下当前的数字，因为测试和学习同时进行的，号码容易窜
@@ -246,7 +246,7 @@ class Distributed_PPO:
                 print('...saving check point... ', int(training_num_temp))
                 self.global_policy.save_checkpoint(name='Policy_PPO', path=self.path, num=training_num_temp)
                 # self.save_models()
-                eval_num = 10
+                eval_num = 3
                 r = 0
                 error = []
                 for i in range(eval_num):

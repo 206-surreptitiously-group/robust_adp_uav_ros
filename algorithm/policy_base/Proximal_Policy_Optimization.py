@@ -1,9 +1,9 @@
-import rospy
+# import rospy
 from common.common_cls import *
 import cv2 as cv
 
+from environment.Color import Color
 from environment.envs.UAV.ref_cmd import generate_uncertainty
-from environment.envs.UAV.uav_visualization import UAV_Visualization
 
 """use CPU or GPU"""
 use_cuda = torch.cuda.is_available()
@@ -65,7 +65,7 @@ class Proximal_Policy_Optimization:
         '''networks'''
 
         '''ros'''
-        self.rate = rospy.Rate(1 / self.env.dt)
+        # self.rate = rospy.Rate(1 / self.env.dt)
         '''ros'''
 
         self.episode = 0
@@ -112,19 +112,25 @@ class Proximal_Policy_Optimization:
         r = 0
         for _ in range(test_num):
             self.env.reset()
+            self.env.draw_init_image()
             while not self.env.is_terminal:
                 self.env.current_state = self.env.next_state.copy()
                 _action_from_actor = self.evaluate(self.env.current_state)
                 _action = self.action_linear_trans(_action_from_actor.cpu().numpy().flatten())  # 将动作转换到实际范围上
                 uncertainty = generate_uncertainty(time=self.env.time, is_ideal=True)  # 生成干扰信号
-                self.env.update(_action, dis=uncertainty)  # 环境更新的动作必须是实际物理动作
+                self.env.step_update(_action)  # 环境更新的动作必须是实际物理动作
                 r += self.env.reward
-                self.env.uav_vis.render(uav_pos=self.env.uav_pos(),
-                                        uav_pos_ref=self.env.pos_ref,
-                                        uav_att=self.env.uav_att(),
-                                        uav_att_ref=self.env.att_ref,
-                                        d=4 * self.env.d)  # to make it clearer, we increase the size 4 times
-                self.rate.sleep()
+                # self.env.uav_vis.render(uav_pos=self.env.uav_pos(),
+                #                         uav_pos_ref=self.env.pos_ref,
+                #                         uav_att=self.env.uav_att(),
+                #                         uav_att_ref=self.env.att_ref,
+                #                         d=4 * self.env.d)  # to make it clearer, we increase the size 4 times
+                # self.rate.sleep()
+                self.env.image = self.env.image_copy.copy()
+                self.env.draw_3d_points_projection(np.atleast_2d([self.env.uav_pos()]), [Color().Red])
+                self.env.draw_3d_points_projection(np.atleast_2d([self.env.pos_ref[0:3]]), [Color().Green])
+                self.env.draw_error(self.env.uav_pos(), self.env.pos_ref[0:3])
+                self.env.show_image(False)
         r /= test_num
         return r
 

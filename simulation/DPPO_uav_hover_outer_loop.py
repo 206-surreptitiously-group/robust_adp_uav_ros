@@ -1,11 +1,8 @@
 #!/usr/bin/python3
 import datetime
-import math
 import os
 import sys
-
 import matplotlib.pyplot as plt
-import numpy as np
 
 from environment.Color import Color
 
@@ -21,7 +18,7 @@ from algorithm.policy_base.Distributed_PPO import Worker
 from common.common_cls import *
 import torch.multiprocessing as mp
 
-optPath = '/home/ps/cy_ws/src/robust_adp_uav_ros/datasave/network/'
+optPath = '../datasave/network/'
 show_per = 1
 timestep = 0
 ENV = 'DPPO-uav-hover-outer-loop'
@@ -123,7 +120,7 @@ class PPOActorCritic(nn.Module):
 if __name__ == '__main__':
     # rospy.init_node(name='DPPO_uav_hover_outer_loop', anonymous=False)
 
-    log_dir = '/home/ps/cy_ws/src/robust_adp_uav_ros/datasave/log/'
+    log_dir = '../datasave/log/'
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(),
@@ -177,24 +174,26 @@ if __name__ == '__main__':
         '''1. 启动多进程'''
         mp.set_start_method('spawn', force=True)
         '''2. 定义DPPO参数'''
-        process_num = 50
+        process_num = 5
         actor_lr = 3e-4 / process_num
         critic_lr = 1e-3 / process_num
         action_std = 0.9
-        k_epo_init = int(100 / process_num * 1.1)
+        k_epo_init = 100
         agent = DPPO(env=env, actor_lr=actor_lr, critic_lr=critic_lr, num_of_pro=process_num, path=simulation_path)
         '''3. 重新加载全局网络和优化器，这是必须的操作，考虑到不同学习环境设计不同的网络结构，训练前要重写PPOActorCritic'''
         agent.global_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'GlobalPolicy',
                                              simulation_path)
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'EvalPolicy',
                                            simulation_path)
+        if RETRAIN:
+            agent.global_policy.load_state_dict(torch.load('Policy_ppo'))
         agent.global_policy.share_memory()
         agent.optimizer = SharedAdam([
             {'params': agent.global_policy.actor.parameters(), 'lr': actor_lr},
             {'params': agent.global_policy.critic.parameters(), 'lr': critic_lr}
         ])
         '''4. 添加进程'''
-        ppo_msg = {'gamma': 0.99, 'k_epo': int(k_epo_init / process_num * 1.5), 'eps_c': 0.2, 'a_std': 0.6,
+        ppo_msg = {'gamma': 0.99, 'k_epo': int(k_epo_init / process_num * 1.5), 'eps_c': 0.2, 'a_std': action_std,
                    'device': 'cpu', 'loss': nn.MSELoss()}
         for i in range(agent.num_of_pro):
             worker = Worker(g_pi=agent.global_policy,
@@ -220,6 +219,8 @@ if __name__ == '__main__':
         agent = DPPO(env=env, actor_lr=3e-4, critic_lr=1e-3, num_of_pro=0, path=simulation_path)
         agent.global_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                              'GlobalPolicy_ppo', simulation_path)
+        agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
+                                             'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
         agent.load_models(optPath + 'DPPO_uav_hover_outer_loop/')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
@@ -227,6 +228,7 @@ if __name__ == '__main__':
         test_num = 1
         for _ in range(test_num):
             env.reset()
+            env.draw_init_image()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 action_from_actor = agent.evaluate(env.current_state).numpy()
@@ -239,10 +241,11 @@ if __name__ == '__main__':
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                # env.image = env.image_copy.copy()
-                # env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
-                # env.draw_error(env.uav_pos(), env.pos_ref[0:3])
-                # env.show_image(False)
+                env.image = env.image_copy.copy()
+                env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
+                env.draw_3d_points_projection(np.atleast_2d([env.pos_ref]), [Color().Green])
+                env.draw_error(env.uav_pos(), env.pos_ref[0:3])
+                env.show_image(False)
         env.collector.plot_pos()
         env.collector.plot_vel()
         env.collector.plot_throttle()
