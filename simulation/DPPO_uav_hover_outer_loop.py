@@ -143,7 +143,7 @@ if __name__ == '__main__':
     uav_param.J0 = 1.01e-5
     uav_param.kr = 1e-3
     uav_param.kt = 1e-3
-    uav_param.pos0 = np.array([0, 0, 0])
+    uav_param.pos0 = np.array([0, 0, 3])
     uav_param.vel0 = np.array([0, 0, 0])
     uav_param.angle0 = np.array([0, 0, 0])
     uav_param.pqr0 = np.array([0, 0, 0])
@@ -166,7 +166,7 @@ if __name__ == '__main__':
     att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
     '''Parameter list of the attitude controller'''
 
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 4, 2]))
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 4, 3]))
     env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 
@@ -174,10 +174,10 @@ if __name__ == '__main__':
         '''1. 启动多进程'''
         mp.set_start_method('spawn', force=True)
         '''2. 定义DPPO参数'''
-        process_num = 5
+        process_num = 10
         actor_lr = 3e-4 / process_num
         critic_lr = 1e-3 / process_num
-        action_std = 0.9
+        action_std = 0.8
         k_epo_init = 100
         agent = DPPO(env=env, actor_lr=actor_lr, critic_lr=critic_lr, num_of_pro=process_num, path=simulation_path)
         '''3. 重新加载全局网络和优化器，这是必须的操作，考虑到不同学习环境设计不同的网络结构，训练前要重写PPOActorCritic'''
@@ -186,7 +186,7 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'EvalPolicy',
                                            simulation_path)
         if RETRAIN:
-            agent.global_policy.load_state_dict(torch.load('Policy_ppo'))
+            agent.global_policy.load_state_dict(torch.load('Policy_PPO600'))
         agent.global_policy.share_memory()
         agent.optimizer = SharedAdam([
             {'params': agent.global_policy.actor.parameters(), 'lr': actor_lr},
@@ -220,7 +220,7 @@ if __name__ == '__main__':
         agent.global_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                              'GlobalPolicy_ppo', simulation_path)
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
-                                             'EvalPolicy_ppo', simulation_path)
+                                           'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
         agent.load_models(optPath + 'DPPO_uav_hover_outer_loop/')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())

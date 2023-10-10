@@ -124,7 +124,7 @@ class Worker(mp.Process):
         self.set_action_std(self.action_std)
 
     def run(self):
-        max_training_timestep = int(self.env.time_max / self.env.dt) * 10000  # 5000 最长回合的数据
+        max_training_timestep = int(self.env.time_max / self.env.dt) * 20000  # 5000 最长回合的数据
         # max_training_timestep = 5000
         action_std_decay_freq = int(8e5)  # 每隔这么多个 timestep 把探索方差减小点
         action_std_decay_rate = 0.05  # linearly decay action_std (action_std = action_std - action_std_decay_rate)

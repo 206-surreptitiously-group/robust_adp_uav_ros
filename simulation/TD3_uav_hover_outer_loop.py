@@ -4,6 +4,7 @@ import os
 import sys
 import time
 
+import torch
 from matplotlib import pyplot as plt
 
 from environment.Color import Color
@@ -278,7 +279,7 @@ if __name__ == '__main__':
     att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
     '''Parameter list of the attitude controller'''
 
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 4, 2]))
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 3, 2]))
     env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 
@@ -306,10 +307,10 @@ if __name__ == '__main__':
                     path=simulation_path)
         agent.TD3_info()
         # cv.waitKey(0)
-        MAX_EPISODE = 600
+        MAX_EPISODE = 1200
         if RETRAIN:
             print('Retraining')
-            fullFillReplayMemory_with_Optimal(randomEnv=True,
+            fullFillReplayMemory_with_Optimal(randomEnv=False,
                                               fullFillRatio=0.5,
                                               is_only_success=False)
             # 如果注释掉，就是在上次的基础之上继续学习，如果不是就是重新学习，但是如果两次的奖励函数有变化，那么就必须执行这两句话
@@ -323,7 +324,7 @@ if __name__ == '__main__':
             '''生成初始数据之后要再次初始化网络'''
         else:
             '''fullFillReplayMemory_Random'''
-            fullFillReplayMemory_Random(randomEnv=True, fullFillRatio=0.8)
+            fullFillReplayMemory_Random(randomEnv=False, fullFillRatio=0.8)
             '''fullFillReplayMemory_Random'''
         print('Start to train...')
         new_state, new_action, new_reward, new_state_, new_done = [], [], [], [], []
@@ -341,7 +342,7 @@ if __name__ == '__main__':
             new_done.clear()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
-                if random.uniform(0, 1) < 0.2:  # 有一定探索概率完全随机探索
+                if random.uniform(0, 1) < 0.5:  # 有一定探索概率完全随机探索
                     # print('...random...')
                     action_from_actor = agent.choose_action_random()  # 有一定探索概率完全随机探索
                 else:

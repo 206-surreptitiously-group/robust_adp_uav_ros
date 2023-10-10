@@ -417,15 +417,15 @@ class UAV:
         if (self.x < self.x_min) or (self.x > self.x_max):
             if self.msg_print_flag:
                 print('XOUT!!!!!')
-            _flag = True
+            _flag = False
         if (self.y < self.y_min) or (self.y > self.y_max):
             if self.msg_print_flag:
                 print('YOUT!!!!!')
-            _flag = True
+            _flag = False
         if (self.z < self.z_min) or (self.z > self.z_max):
             if self.msg_print_flag:
                 print('ZOUT!!!!!')
-            _flag = True
+            _flag = False
         return _flag
 
     def is_att_out(self) -> bool:
