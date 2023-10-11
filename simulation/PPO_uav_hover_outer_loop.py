@@ -30,6 +30,41 @@ def setup_seed(seed):
 
 setup_seed(2162)
 
+'''Parameter list of the quadrotor'''
+DT = 0.01
+uav_param = uav_param()
+uav_param.m = 0.8
+uav_param.g = 9.8
+uav_param.J = np.array([4.212e-3, 4.212e-3, 8.255e-3])
+uav_param.d = 0.12
+uav_param.CT = 2.168e-6
+uav_param.CM = 2.136e-8
+uav_param.J0 = 1.01e-5
+uav_param.kr = 1e-3
+uav_param.kt = 1e-3
+uav_param.pos0 = np.array([0, 0, 0])
+uav_param.vel0 = np.array([0, 0, 0])
+uav_param.angle0 = np.array([0, 0, 0])
+uav_param.pqr0 = np.array([0, 0, 0])
+uav_param.dt = DT
+uav_param.time_max = 5
+uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
+'''Parameter list of the quadrotor'''
+
+'''Parameter list of the attitude controller'''
+att_ctrl_param = fntsmc_param()
+att_ctrl_param.k1 = np.array([25, 25, 40])
+att_ctrl_param.k2 = np.array([0.1, 0.1, 0.2])
+att_ctrl_param.alpha = np.array([2.5, 2.5, 2.5])
+att_ctrl_param.beta = np.array([0.99, 0.99, 0.99])
+att_ctrl_param.gamma = np.array([1.5, 1.5, 1.2])
+att_ctrl_param.lmd = np.array([2.0, 2.0, 2.0])
+att_ctrl_param.dim = 3
+att_ctrl_param.dt = DT
+att_ctrl_param.ctrl0 = np.array([0., 0., 0.])
+att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
+'''Parameter list of the attitude controller'''
+
 
 class PPOActorCritic(nn.Module):
     def __init__(self, _state_dim, _action_dim, _action_std_init, name='PPOActorCritic', chkpt_dir=''):
@@ -120,48 +155,14 @@ if __name__ == '__main__':
     log_dir = '../datasave/log/'
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '\\'
+    simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(),
+                                                           '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '/'
     os.mkdir(simulation_path)
     TRAIN = True
     RETRAIN = False
     TEST = not TRAIN
 
-    '''Parameter list of the quadrotor'''
-    DT = 0.01
-    uav_param = uav_param()
-    uav_param.m = 0.8
-    uav_param.g = 9.8
-    uav_param.J = np.array([4.212e-3, 4.212e-3, 8.255e-3])
-    uav_param.d = 0.12
-    uav_param.CT = 2.168e-6
-    uav_param.CM = 2.136e-8
-    uav_param.J0 = 1.01e-5
-    uav_param.kr = 1e-3
-    uav_param.kt = 1e-3
-    uav_param.pos0 = np.array([0, 0, 0])
-    uav_param.vel0 = np.array([0, 0, 0])
-    uav_param.angle0 = np.array([0, 0, 0])
-    uav_param.pqr0 = np.array([0, 0, 0])
-    uav_param.dt = DT
-    uav_param.time_max = 10
-    uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
-    '''Parameter list of the quadrotor'''
-
-    '''Parameter list of the attitude controller'''
-    att_ctrl_param = fntsmc_param()
-    att_ctrl_param.k1 = np.array([25, 25, 40])
-    att_ctrl_param.k2 = np.array([0.1, 0.1, 0.2])
-    att_ctrl_param.alpha = np.array([2.5, 2.5, 2.5])
-    att_ctrl_param.beta = np.array([0.99, 0.99, 0.99])
-    att_ctrl_param.gamma = np.array([1.5, 1.5, 1.2])
-    att_ctrl_param.lmd = np.array([2.0, 2.0, 2.0])
-    att_ctrl_param.dim = 3
-    att_ctrl_param.dt = DT
-    att_ctrl_param.ctrl0 = np.array([0., 0., 0.])
-    att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
-    '''Parameter list of the attitude controller'''
-
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 4, 2]))
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-1, 3, 2]))
     env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 
@@ -171,13 +172,13 @@ if __name__ == '__main__':
         policy = PPOActorCritic(env.state_dim, env.action_dim, action_std_init, 'Policy', simulation_path)
         policy_old = PPOActorCritic(env.state_dim, env.action_dim, action_std_init, 'Policy_old', simulation_path)
         agent = PPO(env=env,
-                    actor_lr=3e-4,
+                    actor_lr=1e-4,
                     critic_lr=1e-3,
                     gamma=0.99,
-                    K_epochs=20,
+                    K_epochs=30,
                     eps_clip=0.2,
                     action_std_init=action_std_init,
-                    buffer_size=int(env.time_max / env.dt * 2),
+                    buffer_size=int(env.time_max / env.dt * 4),
                     policy=policy,
                     policy_old=policy_old,
                     path=simulation_path)
@@ -198,11 +199,12 @@ if __name__ == '__main__':
         index = 0
         while timestep <= max_training_timestep:
             env.reset()
+            sumr = 0.
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 action_from_actor, s, a_log_prob, s_value = agent.choose_action(env.current_state)
-                action_from_actor = action_from_actor.numpy()
-                action = agent.action_linear_trans(action_from_actor.flatten())
+                # action_from_actor = action_from_actor.numpy()     # YYF
+                action = agent.action_linear_trans(action_from_actor.detach().cpu().numpy().flatten())  # YYF 改过
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(action)  # 环境更新的动作必须是实际物理动作
                 sumr += env.reward
@@ -222,14 +224,14 @@ if __name__ == '__main__':
                     print('Episode: {}'.format(agent.episode))
                     print('Num of learning: {}'.format(train_num))
                     agent.learn()
-                    average_train_r = round(sumr / (agent.episode + 1 - start_eps), 3)
-                    print('Average reward:', average_train_r)
+                    # average_train_r = round(sumr / (agent.episode + 1 - start_eps), 3)
+                    # print('Average reward:', average_train_r)
                     train_num += 1
                     start_eps = agent.episode
-                    sumr = 0
+                    # sumr = 0
                     index = 0
-                    if train_num % 20 == 0 and train_num > 0:
-                        average_test_r = agent.agent_evaluate(2)
+                    if train_num % 10 == 0 and train_num > 0:
+                        average_test_r = agent.agent_evaluate(1)  # YYF
                         test_num += 1
                         print('check point save')
                         temp = simulation_path + 'episode' + '_' + str(agent.episode) + '_save/'
@@ -239,6 +241,8 @@ if __name__ == '__main__':
                     print('========= LEARN =========')
                 if timestep % action_std_decay_freq == 0:
                     agent.decay_action_std(action_std_decay_rate, min_action_std)
+            if agent.episode % 5 == 0:
+                print('Episode: ', agent.episode, ' Reward: ', sumr)
             agent.episode += 1
     else:
         action_std_init = 0.8
@@ -255,14 +259,15 @@ if __name__ == '__main__':
                     policy=policy,
                     policy_old=policy_old,
                     path=simulation_path)
-        agent.policy.load_state_dict(torch.load('../datasave/network/'))
+        # agent.policy.load_state_dict(torch.load('../datasave/network/'))
+        agent.policy.load_state_dict(torch.load('Policy_PPO4940000'))
         test_num = 1
         for _ in range(test_num):
             env.reset()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
-                _action_from_actor = agent.evaluate(env.current_state).numpy()
-                _action = agent.action_linear_trans(_action_from_actor.cpu().flatten())  # 将actor输出动作转换到实际动作范围
+                _action_from_actor = agent.evaluate(env.current_state)
+                _action = agent.action_linear_trans(_action_from_actor.cpu().numpy().flatten())  # 将actor输出动作转换到实际动作范围
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(_action)  # 环境更新的动作必须是实际物理动作
                 # env.uav_vis.render(uav_pos=env.uav_pos(),
@@ -275,7 +280,8 @@ if __name__ == '__main__':
                 # env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
                 # env.draw_error(env.uav_pos(), env.pos_ref[0:3])
                 # env.show_image(False)
-        env.collector.plot_pos()
-        env.collector.plot_vel()
-        env.collector.plot_throttle()
-        plt.show()
+            env.collector.plot_pos()
+            env.collector.plot_vel()
+            env.collector.plot_att()
+            env.collector.plot_throttle()
+            plt.show()

@@ -240,7 +240,7 @@ if __name__ == '__main__':
     simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '\\'
     os.mkdir(simulation_path)
     TRAIN = True
-    RETRAIN = False
+    RETRAIN = True
     TEST = not TRAIN
     is_storage_only_success = False
 
@@ -279,7 +279,21 @@ if __name__ == '__main__':
     att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
     '''Parameter list of the attitude controller'''
 
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 3, 2]))
+    '''Parameter list of the position controller'''
+    pos_ctrl_param = fntsmc_param()
+    pos_ctrl_param.k1 = np.array([1.2, 0.8, 0.5])
+    pos_ctrl_param.k2 = np.array([0.2, 0.6, 0.5])
+    pos_ctrl_param.alpha = np.array([1.2, 1.5, 1.2])
+    pos_ctrl_param.beta = np.array([0.3, 0.3, 0.5])
+    pos_ctrl_param.gamma = np.array([0.2, 0.2, 0.2])
+    pos_ctrl_param.lmd = np.array([2.0, 2.0, 2.0])
+    pos_ctrl_param.dim = 3
+    pos_ctrl_param.dt = DT
+    pos_ctrl_param.ctrl0 = np.array([0., 0., 0.])
+    pos_ctrl_param.saturation = np.array([np.inf, np.inf, np.inf])
+    '''Parameter list of the position controller'''
+
+    env = env(uav_param, pos_ctrl_param, att_ctrl_param, target0=np.array([-1, 3, 2]))
     env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 

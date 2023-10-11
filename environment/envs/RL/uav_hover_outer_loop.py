@@ -35,12 +35,12 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         self.e_pos_min = -np.array([5., 5., 0.])
         self.vel_max = np.array([3., 3., 3.])
         self.vel_min = -np.array([3., 3., 3.])
-        self.u_min = -10
-        self.u_max = 10
+        self.u_min = -1.5
+        self.u_max = 1.5
         '''state action limitation'''
 
         '''rl_base'''
-        self.state_dim = 4  # ex ey ez vx vy vz
+        self.state_dim = 6  # ex ey ez vx vy vz
         self.state_num = [math.inf for _ in range(self.state_dim)]
         self.state_step = [None for _ in range(self.state_dim)]
         self.state_space = [None for _ in range(self.state_dim)]
@@ -51,11 +51,12 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         self.current_state = self.initial_state.copy()
         self.next_state = self.initial_state.copy()
 
-        self.action_dim = 2  # ux uy uz
+        self.action_dim = 3  # ux uy uz
         self.action_num = [math.inf for _ in range(self.action_dim)]
         self.action_step = [None for _ in range(self.action_dim)]
         self.action_space = [None for _ in range(self.action_dim)]
         self.action_range = [[self.u_min, self.u_max],
+                             [self.u_min, self.u_max],
                              [self.u_min, self.u_max]]
         self.is_action_continuous = [True for _ in range(self.action_dim)]
 
@@ -75,7 +76,7 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         # norm_pos = (2 * self.uav_pos() - self.pos_zone[:, 1] - self.pos_zone[:, 0]) / (self.pos_zone[:,
         # 1] - self.pos_zone[:, 0]) * self.static_gain
         norm_vel = 2 * self.uav_vel() / (self.vel_max - self.vel_min) * self.static_gain
-        norm_state = np.concatenate((norm_error[:2], norm_vel[:2]))
+        norm_state = np.concatenate((norm_error, norm_vel))
 
         return norm_state
 
@@ -83,10 +84,15 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         """
         计算奖励时用归一化后的状态和动作
         """
-        Qx, Qv, R = 1, 0.05, 0.01
+        Qx, Qv, R = 1, 0.1, 0.
         r1 = - np.linalg.norm(self.error) ** 2 * Qx
         r2 = - np.linalg.norm(self.uav_vel()) ** 2 * Qv
-
+        # yyf_x0 = np.linalg.norm(self.error) / np.linalg.norm(self.e_pos_max - self.e_pos_min)
+        # if yyf_x0 < 0.25:
+        #     kk = -180 * yyf_x0 + 50
+        # else:
+        #     kk = 5
+        # r1 = (-yyf_x0 + 0.5) * kk
         # norm_action = (np.array(self.current_action) * 2 - self.u_max - self.u_min) / (self.u_max - self.u_min)
         r3 = - np.linalg.norm(self.current_action) ** 2 * R
 
@@ -94,9 +100,10 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         # if np.linalg.norm(self.error) <= 1 and np.linalg.norm(self.uav_vel()) <= 0.5:
         #     r4 = 10
         # 如果因为越界终止，则给剩余时间可能取得的最大惩罚
-        # if self.is_pos_out() or self.is_att_out():
-        #     r4 = - (self.time_max - self.time) / self.dt * (Qx + Qv + R)
-
+        if self.is_pos_out() or self.is_att_out():
+            r4 = - (self.time_max - self.time) / self.dt * (Qx * np.linalg.norm(self.e_pos_max - self.e_pos_min) ** 2
+                                                            + Qv * np.linalg.norm(self.vel_max) ** 2)
+            # r4 = -1000
         self.reward = r1 + r2 + r3 + r4
 
     def is_Terminal(self, param=None):
@@ -111,8 +118,8 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         self.current_state = self.state_norm()
 
         # 外环由RL控制给出
-        self.pos_ctrl.control[:2] = action.copy()
-        self.pos_ctrl.control[2] = 0
+        self.pos_ctrl.control = action.copy()
+        # self.pos_ctrl.control[2] = 0
         phi_d, theta_d, uf = self.uo_2_ref_angle_throttle()
         phi_d = np.clip(phi_d, self.att_zone[0][0], self.att_zone[0][1])
         theta_d = np.clip(theta_d, self.att_zone[1][0], self.att_zone[1][1])
@@ -131,8 +138,8 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
 
         self.update(action=a)
         self.error = self.uav_pos() - self.pos_ref
-        self.vx, self.vy, self.vz = np.clip(self.uav_vel(), self.vel_min, self.vel_max)   # 速度限制
-        self.vz = 0
+        # self.vx, self.vy, self.vz = np.clip(self.uav_vel(), self.vel_min, self.vel_max)   # 速度限制
+        # self.vz = 0
 
         self.is_Terminal()
         self.next_state = self.state_norm()

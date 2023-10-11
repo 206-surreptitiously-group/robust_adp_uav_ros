@@ -4,9 +4,9 @@ import datetime
 import os, sys
 import matplotlib.pyplot as plt
 import numpy as np
-import rospy
+# import rospy
 
-from UAV.uav_visualization import UAV_Visualization
+# from UAV.uav_visualization import UAV_Visualization
 from UAV.FNTSMC import fntsmc_param
 from UAV.ref_cmd import *
 from UAV.uav import uav_param
@@ -66,18 +66,18 @@ pos_ctrl_param.saturation = np.array([np.inf, np.inf, np.inf])
 '''Parameter list of the position controller'''
 
 if __name__ == '__main__':
-    rospy.init_node(name='test_pos_ctrl', anonymous=False)
-    rate = rospy.Rate(1 / DT)
+    # rospy.init_node(name='test_pos_ctrl', anonymous=False)
+    # rate = rospy.Rate(1 / DT)
 
     '''1. Define a controller'''
     pos_ctrl = uav_pos_ctrl(uav_param, att_ctrl_param, pos_ctrl_param)
-    quad_vis = UAV_Visualization()
+    # quad_vis = UAV_Visualization()
 
-    NUM_OF_SIMULATION = 10
+    NUM_OF_SIMULATION = 1
     cnt = 0
 
     # '''3. Control'''
-    while (not rospy.is_shutdown()) and (cnt < NUM_OF_SIMULATION):
+    while cnt < NUM_OF_SIMULATION:
         ref_amplitude = np.zeros(4)
         ref_period = np.ones(4)
         start, ref_bias_a = pos_ctrl.generate_random_start_target()
@@ -94,13 +94,13 @@ if __name__ == '__main__':
         uav_param.pos0 = start
         uav_param.time_max = 10.0
 
-        quad_vis.reset()
+        # quad_vis.reset()
         pos_ctrl.uav_reset_with_new_param(new_uav_param=uav_param)  # 无人机初始参数，只变了初始位置
         pos_ctrl.controller_reset_with_new_param(new_att_param=att_ctrl_param, new_pos_param=pos_ctrl_param)  # 控制器参数，一般不变
         pos_ctrl.collector_reset(round(uav_param.time_max / uav_param.dt))
         pos_ctrl.draw_3d_points_projection(np.atleast_2d([ref[0:3]]), [Color().Green])
         pos_ctrl.draw_init_image()
-        pos_ctrl.show_image(True)
+        pos_ctrl.show_image(False)
 
         if cnt % 1 == 0:
             print('Current:', cnt)
@@ -131,13 +131,13 @@ if __name__ == '__main__':
             pos_ctrl.update(action=action_4_uav)
 
             '''3.3. publish'''
-            quad_vis.render(uav_pos=pos_ctrl.uav_pos(),
-                            target_pos=ref[0: 3],
-                            uav_pos_ref=pos_ctrl.pos_ref,
-                            uav_att=pos_ctrl.uav_att(),
-                            uav_att_ref=pos_ctrl.att_ref,
-                            d=8 * pos_ctrl.d,
-                            tracking=False)
+            # quad_vis.render(uav_pos=pos_ctrl.uav_pos(),
+            #                 target_pos=ref[0: 3],
+            #                 uav_pos_ref=pos_ctrl.pos_ref,
+            #                 uav_att=pos_ctrl.uav_att(),
+            #                 uav_att_ref=pos_ctrl.att_ref,
+            #                 d=8 * pos_ctrl.d,
+            #                 tracking=False)
 
             pos_ctrl.image = pos_ctrl.image_copy.copy()
             pos_ctrl.draw_3d_points_projection(np.atleast_2d([pos_ctrl.uav_pos()]), [Color().Red])
@@ -153,14 +153,14 @@ if __name__ == '__main__':
                         datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d-%H-%M-%S') + '/')
             os.mkdir(new_path)
             pos_ctrl.collector.package2file(path=new_path)
-        # plt.ion()
-        # pos_ctrl.collector.plot_att()
-        # pos_ctrl.collector.plot_pqr()
-        # pos_ctrl.collector.plot_torque()
-        # pos_ctrl.collector.plot_pos()
-        # pos_ctrl.collector.plot_vel()
-        # pos_ctrl.collector.plot_throttle()
-        # pos_ctrl.collector.plot_outer_obs()
-        # plt.pause(2)
-        # plt.ioff()
-        # plt.show()
+        plt.ion()
+        pos_ctrl.collector.plot_att()
+        pos_ctrl.collector.plot_pqr()
+        pos_ctrl.collector.plot_torque()
+        pos_ctrl.collector.plot_pos()
+        pos_ctrl.collector.plot_vel()
+        pos_ctrl.collector.plot_throttle()
+        pos_ctrl.collector.plot_outer_obs()
+        plt.pause(2)
+        plt.ioff()
+        plt.show()

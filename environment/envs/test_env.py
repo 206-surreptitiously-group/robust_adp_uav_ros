@@ -65,7 +65,7 @@ def test_uav_hover_outer_loop():
     from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop
     # rospy.init_node(name='env_test', anonymous=False)
 
-    env = uav_hover_outer_loop(uav_param, pos_ctrl_param, att_ctrl_param, target0=np.array([-3, 4, 2]))
+    env = uav_hover_outer_loop(uav_param, pos_ctrl_param, att_ctrl_param, target0=np.array([-1, 3, 2]))
     env.msg_print_flag = True
     num = 0
     while num < 1:
@@ -77,6 +77,7 @@ def test_uav_hover_outer_loop():
             r += env.reward
         print(r)
         num += 1
+    env.collector.plot_pos()
     env.collector.plot_throttle()
     env.collector.plot_att()
     plt.show()

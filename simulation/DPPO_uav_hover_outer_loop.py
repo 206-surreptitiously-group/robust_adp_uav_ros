@@ -33,6 +33,41 @@ def setup_seed(seed):
 setup_seed(2162)
 os.environ["OMP_NUM_THREADS"] = "1"
 
+'''Parameter list of the quadrotor'''
+DT = 0.01
+uav_param = uav_param()
+uav_param.m = 0.8
+uav_param.g = 9.8
+uav_param.J = np.array([4.212e-3, 4.212e-3, 8.255e-3])
+uav_param.d = 0.12
+uav_param.CT = 2.168e-6
+uav_param.CM = 2.136e-8
+uav_param.J0 = 1.01e-5
+uav_param.kr = 1e-3
+uav_param.kt = 1e-3
+uav_param.pos0 = np.array([0, 0, 0])
+uav_param.vel0 = np.array([0, 0, 0])
+uav_param.angle0 = np.array([0, 0, 0])
+uav_param.pqr0 = np.array([0, 0, 0])
+uav_param.dt = DT
+uav_param.time_max = 10
+uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
+'''Parameter list of the quadrotor'''
+
+'''Parameter list of the attitude controller'''
+att_ctrl_param = fntsmc_param()
+att_ctrl_param.k1 = np.array([25, 25, 40])
+att_ctrl_param.k2 = np.array([0.1, 0.1, 0.2])
+att_ctrl_param.alpha = np.array([2.5, 2.5, 2.5])
+att_ctrl_param.beta = np.array([0.99, 0.99, 0.99])
+att_ctrl_param.gamma = np.array([1.5, 1.5, 1.2])
+att_ctrl_param.lmd = np.array([2.0, 2.0, 2.0])
+att_ctrl_param.dim = 3
+att_ctrl_param.dt = DT
+att_ctrl_param.ctrl0 = np.array([0., 0., 0.])
+att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
+'''Parameter list of the attitude controller'''
+
 
 class PPOActorCritic(nn.Module):
     def __init__(self, _state_dim, _action_dim, _action_std_init, name='PPOActorCritic', chkpt_dir=''):
@@ -131,42 +166,7 @@ if __name__ == '__main__':
     RETRAIN = False
     TEST = not TRAIN
 
-    '''Parameter list of the quadrotor'''
-    DT = 0.01
-    uav_param = uav_param()
-    uav_param.m = 0.8
-    uav_param.g = 9.8
-    uav_param.J = np.array([4.212e-3, 4.212e-3, 8.255e-3])
-    uav_param.d = 0.12
-    uav_param.CT = 2.168e-6
-    uav_param.CM = 2.136e-8
-    uav_param.J0 = 1.01e-5
-    uav_param.kr = 1e-3
-    uav_param.kt = 1e-3
-    uav_param.pos0 = np.array([0, 0, 3])
-    uav_param.vel0 = np.array([0, 0, 0])
-    uav_param.angle0 = np.array([0, 0, 0])
-    uav_param.pqr0 = np.array([0, 0, 0])
-    uav_param.dt = DT
-    uav_param.time_max = 10
-    uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
-    '''Parameter list of the quadrotor'''
-
-    '''Parameter list of the attitude controller'''
-    att_ctrl_param = fntsmc_param()
-    att_ctrl_param.k1 = np.array([25, 25, 40])
-    att_ctrl_param.k2 = np.array([0.1, 0.1, 0.2])
-    att_ctrl_param.alpha = np.array([2.5, 2.5, 2.5])
-    att_ctrl_param.beta = np.array([0.99, 0.99, 0.99])
-    att_ctrl_param.gamma = np.array([1.5, 1.5, 1.2])
-    att_ctrl_param.lmd = np.array([2.0, 2.0, 2.0])
-    att_ctrl_param.dim = 3
-    att_ctrl_param.dt = DT
-    att_ctrl_param.ctrl0 = np.array([0., 0., 0.])
-    att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
-    '''Parameter list of the attitude controller'''
-
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-3, 4, 3]))
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-1, 3, 2]))
     env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 
@@ -174,9 +174,9 @@ if __name__ == '__main__':
         '''1. 启动多进程'''
         mp.set_start_method('spawn', force=True)
         '''2. 定义DPPO参数'''
-        process_num = 10
-        actor_lr = 3e-4 / process_num
-        critic_lr = 1e-3 / process_num
+        process_num = 15
+        actor_lr = 1e-5 / min(process_num, 5)
+        critic_lr = 1e-4 / min(process_num, 5)
         action_std = 0.8
         k_epo_init = 100
         agent = DPPO(env=env, actor_lr=actor_lr, critic_lr=critic_lr, num_of_pro=process_num, path=simulation_path)
