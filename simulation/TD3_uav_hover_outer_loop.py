@@ -167,7 +167,7 @@ def fullFillReplayMemory_with_Optimal(randomEnv: bool,
                                       is_only_success: bool):
     print('Retraining...')
     print('Collecting...')
-    agent.load_models(optPath)
+    # agent.load_models(optPath)
     fullFillCount = int(fullFillRatio * agent.memory.mem_size)
     fullFillCount = max(min(fullFillCount, agent.memory.mem_size), agent.memory.batch_size)
     _new_state, _new_action, _new_reward, _new_state_, _new_done = [], [], [], [], []
@@ -182,8 +182,10 @@ def fullFillReplayMemory_with_Optimal(randomEnv: bool,
             if agent.memory.mem_counter % 100 == 0:
                 print('replay_count = ', agent.memory.mem_counter)
             env.current_state = env.next_state.copy()  # 状态更新
-            _action_from_actor = agent.choose_action(env.current_state, is_optimal=False)
-            _action = agent.action_linear_trans(_action_from_actor)
+            # _action_from_actor = agent.choose_action(env.current_state, is_optimal=False)
+            # _action = agent.action_linear_trans(_action_from_actor)
+            aa = env.pos_control(env.pos_ref, np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3))
+            _action = np.clip(env.pos_ctrl.control, env.u_min, env.u_max)
             env.step_update(np.array(_action))
             # env.show_dynamic_image(isWait=False)
             if is_only_success:
@@ -237,10 +239,10 @@ if __name__ == '__main__':
     log_dir = '../datasave/log/'
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '\\'
+    simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '/'
     os.mkdir(simulation_path)
     TRAIN = True
-    RETRAIN = True
+    RETRAIN = False
     TEST = not TRAIN
     is_storage_only_success = False
 
@@ -325,7 +327,7 @@ if __name__ == '__main__':
         if RETRAIN:
             print('Retraining')
             fullFillReplayMemory_with_Optimal(randomEnv=False,
-                                              fullFillRatio=0.5,
+                                              fullFillRatio=0.9,
                                               is_only_success=False)
             # 如果注释掉，就是在上次的基础之上继续学习，如果不是就是重新学习，但是如果两次的奖励函数有变化，那么就必须执行这两句话
             '''生成初始数据之后要再次初始化网络'''
@@ -356,7 +358,7 @@ if __name__ == '__main__':
             new_done.clear()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
-                if random.uniform(0, 1) < 0.5:  # 有一定探索概率完全随机探索
+                if random.uniform(0, 1) < 0.8:  # 有一定探索概率完全随机探索
                     # print('...random...')
                     action_from_actor = agent.choose_action_random()  # 有一定探索概率完全随机探索
                 else:
@@ -371,6 +373,7 @@ if __name__ == '__main__':
                     env.draw_3d_points_projection(np.atleast_2d([env.pos_ref]), [Color().Green])
                     env.draw_error(env.uav_pos(), env.pos_ref[0:3])
                     env.show_image(False)
+                    time.sleep(0.01)
                 sumr = sumr + env.reward
                 if is_storage_only_success:
                     new_state.append(env.current_state)
@@ -388,7 +391,7 @@ if __name__ == '__main__':
                 agent.learn(is_reward_ascent=False)
             '''跳出循环代表回合结束'''
             if is_storage_only_success:
-                if env.terminal_flag == 3:
+                if sumr >= -10000:
                     print('Update Replay Memory......')
                     agent.memory.store_transition_per_episode(new_state, new_action, new_reward, new_state_, new_done)
             '''跳出循环代表回合结束'''

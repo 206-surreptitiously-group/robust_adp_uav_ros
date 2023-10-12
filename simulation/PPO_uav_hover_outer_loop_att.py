@@ -13,7 +13,7 @@ from environment.Color import Color
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 # import rospy
-from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop as env
+from environment.envs.RL.uav_hover_outer_loop_att import uav_hover_outer_loop as env
 from environment.envs.UAV.ref_cmd import generate_uncertainty
 from environment.envs.UAV.uav import uav_param
 from environment.envs.UAV.FNTSMC import fntsmc_param
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(),
                                                            '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '/'
     os.mkdir(simulation_path)
-    TRAIN = False
+    TRAIN = True
     RETRAIN = False
     TEST = not TRAIN
 

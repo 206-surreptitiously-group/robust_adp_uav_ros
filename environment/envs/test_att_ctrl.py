@@ -5,9 +5,9 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-import rospy
+# import rospy
 
-from UAV.uav_visualization import UAV_Visualization
+# from UAV.uav_visualization import UAV_Visualization
 from UAV.FNTSMC import fntsmc_param
 from UAV.ref_cmd import *
 from UAV.uav import uav_param
@@ -51,10 +51,10 @@ att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])   # max torque
 '''Parameter list of the attitude controller'''
 
 if __name__ == '__main__':
-    rospy.init_node(name='test_att_ctrl', anonymous=False)
-    quad_vis = UAV_Visualization()
+    # rospy.init_node(name='test_att_ctrl', anonymous=False)
+    # quad_vis = UAV_Visualization()
 
-    rate = rospy.Rate(1 / DT)
+    # rate = rospy.Rate(1 / DT)
 
     '''1. Define a controller'''
     att_ctrl = uav_att_ctrl(uav_param, att_ctrl_param)
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     ref_bias_phase = np.array([0., np.pi / 2, np.pi / 2])
 
     '''3. Control'''
-    while (att_ctrl.time < att_ctrl.time_max - DT / 2) and (not rospy.is_shutdown()):
+    while att_ctrl.time < att_ctrl.time_max - DT / 2:
         # if att_ctrl.is_att_out():
         #     print('Attitude out!!!!!')
         if att_ctrl.n % 1000 == 0:
@@ -79,13 +79,13 @@ if __name__ == '__main__':
         att_ctrl.update(action=torque)
 
         '''3.3. publish'''
-        quad_vis.render(uav_pos=att_ctrl.uav_pos(),
-                        target_pos=None,
-                        uav_pos_ref=np.zeros(3),
-                        uav_att=att_ctrl.uav_att(),
-                        uav_att_ref=att_ctrl.ref,
-                        d=10 * att_ctrl.d,
-                        tracking=False)
+        # quad_vis.render(uav_pos=att_ctrl.uav_pos(),
+        #                 target_pos=None,
+        #                 uav_pos_ref=np.zeros(3),
+        #                 uav_att=att_ctrl.uav_att(),
+        #                 uav_att_ref=att_ctrl.ref,
+        #                 d=10 * att_ctrl.d,
+        #                 tracking=False)
         # rate.sleep()
     print('Finish...')
     SAVE = False

@@ -62,7 +62,7 @@ pos_ctrl_param.saturation = np.array([np.inf, np.inf, np.inf])
 
 
 def test_uav_hover_outer_loop():
-    from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop
+    from environment.envs.RL.uav_hover_outer_loop_att import uav_hover_outer_loop
     # rospy.init_node(name='env_test', anonymous=False)
 
     env = uav_hover_outer_loop(uav_param, pos_ctrl_param, att_ctrl_param, target0=np.array([-1, 3, 2]))

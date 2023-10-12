@@ -92,7 +92,7 @@ if __name__ == '__main__':
         throttle = pos_ctrl.m * pos_ctrl.g
 
         uav_param.pos0 = start
-        uav_param.time_max = 10.0
+        uav_param.time_max = 5.0
 
         # quad_vis.reset()
         pos_ctrl.uav_reset_with_new_param(new_uav_param=uav_param)  # 无人机初始参数，只变了初始位置
@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
         if cnt % 1 == 0:
             print('Current:', cnt)
-
+        dphi, dtheta = [], []
         while pos_ctrl.time < pos_ctrl.time_max - DT / 2:
             # if pos_ctrl.n % 1000 == 0:
             #     print('time: ', pos_ctrl.n * pos_ctrl.dt)
@@ -120,7 +120,8 @@ if __name__ == '__main__':
             phi_d, theta_d, throttle = pos_ctrl.pos_control(ref[0:3], dot_ref[0:3], dot2_ref[0:3], uncertainty, obs)
             dot_phi_d = (phi_d - phi_d_old) / pos_ctrl.dt
             dot_theta_d = (theta_d - theta_d_old) / pos_ctrl.dt
-
+            dphi.append(rad2deg(dot_phi_d))
+            dtheta.append(rad2deg(dot_theta_d))
             '''3.3 inner-loop control'''
             rho_d = np.array([phi_d, theta_d, ref[3]])
             dot_rho_d = np.array([dot_phi_d, dot_theta_d, dot_ref[3]])
@@ -153,14 +154,16 @@ if __name__ == '__main__':
                         datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d-%H-%M-%S') + '/')
             os.mkdir(new_path)
             pos_ctrl.collector.package2file(path=new_path)
-        plt.ion()
-        pos_ctrl.collector.plot_att()
-        pos_ctrl.collector.plot_pqr()
-        pos_ctrl.collector.plot_torque()
-        pos_ctrl.collector.plot_pos()
-        pos_ctrl.collector.plot_vel()
-        pos_ctrl.collector.plot_throttle()
-        pos_ctrl.collector.plot_outer_obs()
-        plt.pause(2)
-        plt.ioff()
+        # plt.ion()
+        # pos_ctrl.collector.plot_att()
+        # pos_ctrl.collector.plot_pqr()
+        # pos_ctrl.collector.plot_torque()
+        # pos_ctrl.collector.plot_pos()
+        # pos_ctrl.collector.plot_vel()
+        # pos_ctrl.collector.plot_throttle()
+        # pos_ctrl.collector.plot_outer_obs()
+        # plt.pause(2)
+        # plt.ioff()
+        plt.plot(dphi)
+        plt.plot(dtheta)
         plt.show()
