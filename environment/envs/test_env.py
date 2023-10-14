@@ -2,12 +2,12 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
+from environment.envs.UAV.ref_cmd import ref_inner
 # import rospy
 from environment.envs.UAV.uav import uav_param
 from environment.envs.UAV.FNTSMC import fntsmc_param, fntsmc_pos, fntsmc_att
 import os
 import sys
-
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
@@ -62,7 +62,7 @@ pos_ctrl_param.saturation = np.array([np.inf, np.inf, np.inf])
 
 
 def test_uav_hover_outer_loop():
-    from environment.envs.RL.uav_hover_outer_loop_att import uav_hover_outer_loop
+    from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop
     # rospy.init_node(name='env_test', anonymous=False)
 
     env = uav_hover_outer_loop(uav_param, pos_ctrl_param, att_ctrl_param, target0=np.array([-1, 3, 2]))
@@ -73,6 +73,8 @@ def test_uav_hover_outer_loop():
         r = 0
         while not env.is_terminal:
             action = env.pos_control(env.pos_ref, np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3))
+            action = env.pos_ctrl.control
+            print(action)
             env.step_update(action=np.array(action))
             r += env.reward
         print(r)
@@ -83,5 +85,59 @@ def test_uav_hover_outer_loop():
     plt.show()
 
 
+def test_uav_hover_inner_loop():
+    from environment.envs.RL.uav_hover_inner_loop import uav_hover_inner_loop
+    # rospy.init_node(name='env_test', anonymous=False)
+
+    env = uav_hover_inner_loop(uav_param, pos_ctrl_param, att_ctrl_param, target0=np.array([-1, 3, 2]))
+    env.msg_print_flag = True
+    num = 0
+    phi_d = phi_d_old = 0.
+    theta_d = theta_d_old = 0.
+    dot_phi_d = (phi_d - phi_d_old) / uav_param.dt
+    dot_theta_d = (theta_d - theta_d_old) / uav_param.dt
+    while num < 1:
+        env.reset()
+        r = 0
+        while not env.is_terminal:
+            # print(action)
+            env.step_update(action=np.array([0.01, 0, 0]))
+            r += env.reward
+        print(r)
+        num += 1
+    env.collector.plot_pos()
+    env.collector.plot_throttle()
+    env.collector.plot_att()
+    plt.show()
+
+
+def test_uav_inner_loop():
+    from environment.envs.RL.uav_inner_loop import uav_inner_loop
+    # rospy.init_node(name='env_test', anonymous=False)
+
+    env = uav_inner_loop(uav_param, att_ctrl_param)
+    env.msg_print_flag = True
+    num = 0
+    ref_amplitude = np.array([np.pi / 6, np.pi / 6, np.pi / 3])
+    ref_period = np.array([4, 4, 4])
+    ref_bias_a = np.array([0, 0, 0])
+    ref_bias_phase = np.array([0., np.pi / 2, np.pi / 3])
+    while num < 1:
+        env.reset()
+        r = 0
+        while not env.is_terminal:
+            rhod, dot_rhod, dot2_rhod, dot3_rhod = ref_inner(env.time, ref_amplitude, ref_period, ref_bias_a,
+                                                             ref_bias_phase)
+            action = env.att_control(ref=rhod, dot_ref=dot_rhod, dot2_ref=dot2_rhod)
+            # print(action)
+            env.step_update(action=np.array(action))
+            r += env.reward
+        print(r)
+        num += 1
+    env.collector.plot_throttle()
+    env.collector.plot_att()
+    plt.show()
+
+
 if __name__ == '__main__':
-    test_uav_hover_outer_loop()
+    test_uav_inner_loop()

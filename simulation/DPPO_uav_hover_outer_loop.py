@@ -153,7 +153,7 @@ class PPOActorCritic(nn.Module):
 
 
 if __name__ == '__main__':
-    # rospy.init_node(name='DPPO_uav_hover_outer_loop', anonymous=False)
+    # rospy.init_node(name='PPO_uav_hover_outer_loop', anonymous=False)
 
     log_dir = '../datasave/log/'
     if not os.path.exists(log_dir):
@@ -222,7 +222,7 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                            'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
-        agent.load_models(optPath + 'DPPO_uav_hover_outer_loop/')
+        agent.load_models(optPath + 'PPO_uav_hover_outer_loop/')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
         env.msg_print_flag = True
         test_num = 1

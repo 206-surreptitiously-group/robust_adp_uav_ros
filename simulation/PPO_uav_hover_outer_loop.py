@@ -5,6 +5,7 @@ import sys
 import time
 
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from numpy import rad2deg
 
@@ -51,7 +52,7 @@ uav_param.vel0 = np.array([0, 0, 0])
 uav_param.angle0 = np.array([0, 0, 0])
 uav_param.pqr0 = np.array([0, 0, 0])
 uav_param.dt = DT
-uav_param.time_max = 5
+uav_param.time_max = 10
 uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
 '''Parameter list of the quadrotor'''
 
@@ -95,8 +96,26 @@ class PPOActorCritic(nn.Module):
             nn.Tanh(),
             nn.Linear(64, 1)
         )
+        self.actor_reset_orthogonal()
+        self.critic_reset_orthogonal()
         self.device = 'cpu'
         self.to(self.device)
+
+    def actor_reset_orthogonal(self):
+        nn.init.orthogonal_(self.actor[0].weight, gain=1.0)
+        nn.init.constant_(self.actor[0].bias, val=1e-3)
+        nn.init.orthogonal_(self.actor[2].weight, gain=1.0)
+        nn.init.constant_(self.actor[2].bias, val=1e-3)
+        nn.init.orthogonal_(self.actor[4].weight, gain=0.01)
+        nn.init.constant_(self.actor[4].bias, val=1e-3)
+
+    def critic_reset_orthogonal(self):
+        nn.init.orthogonal_(self.critic[0].weight, gain=1.0)
+        nn.init.constant_(self.critic[0].bias, val=1e-3)
+        nn.init.orthogonal_(self.critic[2].weight, gain=1.0)
+        nn.init.constant_(self.critic[2].bias, val=1e-3)
+        nn.init.orthogonal_(self.critic[4].weight, gain=1.0)
+        nn.init.constant_(self.critic[4].bias, val=1e-3)
 
     def set_action_std(self, new_action_std):
         """手动设置动作方差"""
@@ -163,11 +182,12 @@ if __name__ == '__main__':
                                                            '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '/'
     os.mkdir(simulation_path)
     TRAIN = False
-    RETRAIN = False
+    RETRAIN = True
     TEST = not TRAIN
 
     env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-1, 3, 2]))
     env.msg_print_flag = False  # 别疯狂打印出界了
+    reward_norm = Normalization(dim=1, update=True)
     # rate = rospy.Rate(1 / env.dt)
 
     if TRAIN:
@@ -187,8 +207,11 @@ if __name__ == '__main__':
                     policy_old=policy_old,
                     path=simulation_path)
         if RETRAIN:
-            agent.policy.load_state_dict(torch.load('Policy_PPO13160000'))
-            agent.policy_old.load_state_dict(torch.load('Policy_PPO13160000'))
+            agent.policy.load_state_dict(torch.load('Policy_PPO32160000'))
+            agent.policy_old.load_state_dict(torch.load('Policy_PPO32160000'))
+            '''如果修改了奖励函数，则原来的critic网络已经不起作用了，需要重新初始化'''
+            agent.policy.critic_reset_orthogonal()
+            agent.policy_old.critic_reset_orthogonal()
         agent.PPO_info()
 
         max_training_timestep = int(env.time_max / env.dt) * 40000
@@ -200,16 +223,15 @@ if __name__ == '__main__':
         start_eps = 0
         train_num = 0
         test_num = 0
+        test_reward = []
         index = 0
         while timestep <= max_training_timestep:
             env.reset()
             sumr = 0.
-            # st, a, log_prob, r, sv, done, i = [], [], [], [], [], [], []
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 action_from_actor, s, a_log_prob, s_value = agent.choose_action(env.current_state)
-                # action_from_actor = action_from_actor.numpy()     # YYF
-                action = agent.action_linear_trans(action_from_actor.detach().cpu().numpy().flatten())  # YYF 改过
+                action = agent.action_linear_trans(action_from_actor.detach().cpu().numpy().flatten())
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(action)  # 环境更新的动作必须是实际物理动作
                 sumr += env.reward
@@ -217,55 +239,34 @@ if __name__ == '__main__':
                 agent.buffer.append(s=env.current_state,
                                     a=action_from_actor,
                                     log_prob=a_log_prob.numpy(),
-                                    r=env.reward,
+                                    r=reward_norm(env.reward),
                                     sv=s_value.numpy(),
                                     done=1.0 if env.is_terminal else 0.0,
                                     index=index)
-                # st.append(env.current_state)
-                # a.append(action_from_actor)
-                # log_prob.append(a_log_prob.numpy())
-                # r.append(env.reward)
-                # sv.append(s_value.numpy())
-                # done.append(1.0 if env.is_terminal else 0.0)
-                # i.append(index)
                 index += 1
                 timestep += 1
                 '''学习'''
                 if timestep % agent.buffer.batch_size == 0:
-                    print('========= LEARN =========')
+                    print('========= Training =========')
                     print('Episode: {}'.format(agent.episode))
                     print('Num of learning: {}'.format(train_num))
                     agent.learn()
-                    # average_train_r = round(sumr / (agent.episode + 1 - start_eps), 3)
-                    # print('Average reward:', average_train_r)
                     train_num += 1
                     start_eps = agent.episode
-                    # sumr = 0
                     index = 0
                     if train_num % 20 == 0 and train_num > 0:
-                        average_test_r = agent.agent_evaluate(1)  # YYF
+                        print('========= Testing =========')
+                        average_test_r = agent.agent_evaluate(1)
                         test_num += 1
-                        print('check point save')
-                        temp = simulation_path + 'episode' + '_' + str(agent.episode) + '_save/'
+                        test_reward.append(average_test_r)
+                        print('   Evaluating %.0f | Reward: %.2f ' % (test_num-1, average_test_r))
+                        temp = simulation_path + 'test_num' + '_' + str(test_num) + '_save/'
                         os.mkdir(temp)
+                        pd.DataFrame({'reward': test_reward}).to_csv(simulation_path + 'test_record.csv')
                         time.sleep(0.01)
                         agent.policy_old.save_checkpoint(name='Policy_PPO', path=temp, num=timestep)
-                    print('========= LEARN =========')
                 if timestep % action_std_decay_freq == 0:
                     agent.decay_action_std(action_std_decay_rate, min_action_std)
-            # if sumr >= -4000:
-                # for k in range(len(st)):
-                #     agent.buffer.append(s=st[k],
-                #                         a=a[k],
-                #                         log_prob=log_prob[k],
-                #                         r=r[k],
-                #                         sv=sv[k],
-                #                         done=done[k],
-                #                         index=i[k])
-                # flag = agent.buffer.append_traj(s=st, a=a, log_prob=log_prob, r=r,
-                #                                 sv=sv, done=done)
-                # if flag:
-                #     print('storing buffer...')
             if agent.episode % 5 == 0:
                 print('Episode: ', agent.episode, ' Reward: ', sumr)
             agent.episode += 1
@@ -285,10 +286,10 @@ if __name__ == '__main__':
                     policy_old=policy_old,
                     path=simulation_path)
         # agent.policy.load_state_dict(torch.load('../datasave/network/'))
-        agent.policy.load_state_dict(torch.load('Policy_PPO3920000'))
+        agent.policy.load_state_dict(torch.load('Policy_PPO12160000'))
         test_num = 1
         r = 0
-        dphi, dtheta = [], []
+        ux, uy, uz = [], [], []
         for _ in range(test_num):
             env.reset()
             env.draw_init_image()
@@ -299,8 +300,9 @@ if __name__ == '__main__':
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(_action)  # 环境更新的动作必须是实际物理动作
                 r += env.reward
-                dphi.append(rad2deg(env.dot_att_ref[0]))
-                dtheta.append(rad2deg(env.dot_att_ref[1]))
+                ux.append(_action[0])
+                uy.append(_action[1])
+                uz.append(_action[2])
                 # print(_action)
                 # env.uav_vis.render(uav_pos=env.uav_pos(),
                 #                    uav_pos_ref=env.pos_ref,
@@ -314,10 +316,12 @@ if __name__ == '__main__':
                 env.draw_error(env.uav_pos(), env.pos_ref[0:3])
                 env.show_image(False)
             print(r)
-            plt.plot(dphi)
-            plt.plot(dtheta)
             env.collector.plot_pos()
             env.collector.plot_vel()
             env.collector.plot_att()
             env.collector.plot_throttle()
+            plt.plot(ux, label='ux')
+            plt.plot(uy, label='uy')
+            plt.plot(uz, label='uz')
+            plt.legend()
             plt.show()

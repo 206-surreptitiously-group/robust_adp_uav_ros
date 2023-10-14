@@ -28,7 +28,8 @@ class ReplayBuffer:
         self.sorted_index = []
         self.resort_count = 0
 
-    def store_transition(self, state: np.ndarray, action: np.ndarray, reward: float, state_: np.ndarray, done: float, log_p: float = 0., has_log_prob: bool = False):
+    def store_transition(self, state: np.ndarray, action: np.ndarray, reward: float, state_: np.ndarray, done: float,
+                         log_p: float = 0., has_log_prob: bool = False):
         index = self.mem_counter % self.mem_size
         self.s_mem[index] = state
         self.a_mem[index] = action
@@ -44,9 +45,11 @@ class ReplayBuffer:
         :return:        根据奖励大小得到所有数据的索引值，升序，即从小到大
         """
         print('...sorting...')
-        self.sorted_index = sorted(range(min(self.mem_counter, self.mem_size)), key=lambda k: self.r_mem[k], reverse=False)
+        self.sorted_index = sorted(range(min(self.mem_counter, self.mem_size)), key=lambda k: self.r_mem[k],
+                                   reverse=False)
 
-    def store_transition_per_episode(self, states, actions, rewards, states_, dones, log_ps=None, has_log_prob: bool = False):
+    def store_transition_per_episode(self, states, actions, rewards, states_, dones, log_ps=None,
+                                     has_log_prob: bool = False):
         self.resort_count += 1
         num = len(states)
         for i in range(num):
@@ -92,7 +95,8 @@ class RolloutBuffer:
         self.state_values[index] = sv
         self.is_terminals[index] = done
 
-    def append_traj(self, s: np.ndarray, a: np.ndarray, log_prob: np.ndarray, r: np.ndarray, sv: np.ndarray, done: np.ndarray):
+    def append_traj(self, s: np.ndarray, a: np.ndarray, log_prob: np.ndarray, r: np.ndarray, sv: np.ndarray,
+                    done: np.ndarray):
         _l = len(done)
         for i in range(_l):
             if self.index == self.batch_size:
@@ -131,7 +135,8 @@ class RolloutBuffer2:
         self.state_values = np.atleast_1d([]).astype(np.float32)
         self.is_terminals = np.atleast_1d([]).astype(np.float32)
 
-    def append_traj(self, s: np.ndarray, a: np.ndarray, log_prob: np.ndarray, r: np.ndarray, sv: np.ndarray, done: np.ndarray):
+    def append_traj(self, s: np.ndarray, a: np.ndarray, log_prob: np.ndarray, r: np.ndarray, sv: np.ndarray,
+                    done: np.ndarray):
         if self.buffer_size == 0:
             self.states = np.atleast_2d(s).astype(np.float32)
             self.actions = np.atleast_2d(a).astype(np.float32)
@@ -736,3 +741,40 @@ class SharedAdam(torch.optim.Adam):
                 state['step'].share_memory_()  # 这句话是对照另一个程序加的
                 state['exp_avg'].share_memory_()
                 state['exp_avg_sq'].share_memory_()
+
+
+class RunningMeanStd:
+    # Dynamically calculate mean and std
+    def __init__(self, dim):  # the dimension of input data
+        self.n = 0
+        self.mean = np.zeros(dim)
+        self.S = np.zeros(dim)
+        self.std = np.sqrt(self.S)
+
+    def update(self, x):
+        x = np.array(x)
+        self.n += 1
+        if self.n == 1:
+            self.mean = x
+            self.std = x
+        else:
+            old_mean = self.mean.copy()
+            self.mean = old_mean + (x - old_mean) / self.n
+            self.S = self.S + (x - old_mean) * (x - self.mean)
+            self.std = np.sqrt(self.S / self.n)
+
+
+class Normalization:
+    def __init__(self, dim, update):
+        self.running_ms = RunningMeanStd(dim=dim)
+        self.update = update
+
+    def __call__(self, x):  # Whether to update the mean and std,during the evaluating,update=False
+        if self.update:
+            self.running_ms.update(x)
+        x = (x - self.running_ms.mean) / (self.running_ms.std + 1e-8)
+
+        return x
+
+    def set_update(self, update: bool):
+        self.update = update

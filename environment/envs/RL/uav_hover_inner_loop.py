@@ -15,35 +15,36 @@ from environment.envs.UAV.uav_pos_ctrl import uav_pos_ctrl
 sys.path.append(os.path.dirname(os.path.abspath(__file__) + '/../'))
 
 
-class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
+class uav_hover_inner_loop(rl_base, uav_pos_ctrl):
     def __init__(self, UAV_param: uav_param, pos_ctrl_param: fntsmc_param,
                  att_ctrl_param: fntsmc_param, target0: np.ndarray):
         rl_base.__init__(self)
         uav_pos_ctrl.__init__(self, UAV_param, att_ctrl_param, pos_ctrl_param)
 
         self.uav_param = UAV_param
-        self.name = 'uav_hover_outer_loop'
+        self.name = 'uav_hover_inner_loop'
 
         self.collector = data_collector(round(self.time_max / self.dt))
 
         self.pos_ref = target0
-        self.error = self.uav_pos() - self.pos_ref
+        self.dot_pos_ref = np.zeros(3)
+        self.att_ref = np.zeros(3)
+        self.dot_uav_att = np.zeros(3)
+        self.error = self.uav_att() - self.att_ref
 
         '''state action limitation'''
         self.static_gain = 1.0
 
-        self.e_pos_max = np.array([5., 5., 5.])
-        self.e_pos_min = -np.array([5., 5., 0.])
-        self.vel_max = np.array([3., 3., 3.])
-        self.vel_min = -np.array([3., 3., 3.])
-        self.dot_att_min = np.array([-deg2rad(60), -deg2rad(60), -deg2rad(1)])
-        self.dot_att_max = np.array([deg2rad(60), deg2rad(60), deg2rad(1)])
-        self.u_min = -7
-        self.u_max = 7
+        self.e_att_max = np.array([deg2rad(45), deg2rad(45), deg2rad(120)])
+        self.e_att_min = -np.array([deg2rad(45), deg2rad(45), deg2rad(120)])
+        self.dot_att_max = np.array([deg2rad(60), deg2rad(60), deg2rad(60)])
+        self.dot_att_min = -np.array([deg2rad(150), deg2rad(150), deg2rad(150)])
+        self.torque_min = -0.3
+        self.torque_max = 0.3
         '''state action limitation'''
 
         '''rl_base'''
-        self.state_dim = 6  # ex ey ez vx vy vz
+        self.state_dim = 6  # ephi etheta epsi dphi dtheta dpsi
         self.state_num = [math.inf for _ in range(self.state_dim)]
         self.state_step = [None for _ in range(self.state_dim)]
         self.state_space = [None for _ in range(self.state_dim)]
@@ -54,13 +55,13 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         self.current_state = self.initial_state.copy()
         self.next_state = self.initial_state.copy()
 
-        self.action_dim = 3  # ux uy uz
+        self.action_dim = 3  # Tx Ty Tz
         self.action_num = [math.inf for _ in range(self.action_dim)]
         self.action_step = [None for _ in range(self.action_dim)]
         self.action_space = [None for _ in range(self.action_dim)]
-        self.action_range = [[self.u_min, self.u_max],
-                             [self.u_min, self.u_max],
-                             [self.u_min, self.u_max]]
+        self.action_range = [[self.torque_min, self.torque_max],
+                             [self.torque_min, self.torque_max],
+                             [self.torque_min, self.torque_max]]
         self.is_action_continuous = [True for _ in range(self.action_dim)]
 
         self.initial_action = [0.0 for _ in range(self.action_dim)]
@@ -75,9 +76,9 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         """
         RL状态归一化
         """
-        norm_error = self.error / (self.e_pos_max - self.e_pos_min) * self.static_gain
-        norm_vel = 2 * self.uav_vel() / (self.vel_max - self.vel_min) * self.static_gain
-        norm_state = np.concatenate((norm_error, norm_vel))
+        norm_error = self.error / (self.e_att_max - self.e_att_min) * self.static_gain
+        norm_pqr = 2 * self.uav_pqr() / (self.pqr_min - self.pqr_max) * self.static_gain
+        norm_state = np.concatenate((norm_error, norm_pqr))
 
         return norm_state
 
@@ -86,16 +87,16 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         计算奖励
         """
         Qx, Qv, R = 5, 0.1, 0.05
-        r1 = - np.linalg.norm(np.tanh(10 * self.error)) ** 2 * Qx
-        r2 = - np.linalg.norm(self.uav_vel()) ** 2 * Qv
+        r1 = - np.linalg.norm(self.error) ** 2 * Qx
+        r2 = - np.linalg.norm(self.uav_pqr()) ** 2 * Qv
         # norm_action = (np.array(self.current_action) * 2 - self.u_max - self.u_min) / (self.u_max - self.u_min)
         r3 = - np.linalg.norm(self.current_action) ** 2 * R
 
         r4 = 0
         # 如果因为越界终止，则给剩余时间可能取得的最大惩罚
         if self.is_pos_out() or self.is_att_out():
-            r4 = - (self.time_max - self.time) / self.dt * (Qx * np.linalg.norm(np.tanh(10 * self.error)) ** 2
-                                                            + Qv * np.linalg.norm(self.uav_vel()) ** 2
+            r4 = - (self.time_max - self.time) / self.dt * (Qx * np.linalg.norm(self.error) ** 2
+                                                            + Qv * np.linalg.norm(self.uav_pqr()) ** 2
                                                             + R * np.linalg.norm(self.current_action) ** 2)
         self.reward = r1 + r2 + r3 + r4
 
@@ -104,35 +105,26 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
 
     def step_update(self, action: np.ndarray):
         """
-        @param action:  三轴加速度指令 ux uy uz
+        @param action:  三轴转矩指令 Tx Ty Tz
         @return:
         """
         self.current_action = action.copy()
         self.current_state = self.state_norm()
 
-        # 外环由RL控制给出
-        self.pos_ctrl.control = action.copy()
-        phi_d, theta_d, uf = self.uo_2_ref_angle_throttle()
+        # 外环由FNTSMC控制给出
+        phi_d, theta_d, uf = self.pos_control(self.pos_ref, self.dot_pos_ref, np.zeros(3), np.zeros(3), np.zeros(3))
         phi_d = np.clip(phi_d, self.att_zone[0][0], self.att_zone[0][1])
         theta_d = np.clip(theta_d, self.att_zone[1][0], self.att_zone[1][1])
+        self.att_ref = np.array([phi_d, theta_d, 0.])   # 偏航手动设置为0
 
-        # 计算内环控制所需参数
-        att_ref_old = self.att_ref
-        att_ref = np.array([phi_d, theta_d, 0.0])  # 偏航角手动设置为0
-        self.dot_att_ref = (att_ref - att_ref_old) / self.dt
-        self.dot_att_ref = np.clip(self.dot_att_ref, self.dot_att_min, self.dot_att_max)  # 姿态角指令变化率限制，保证内环跟得上
-        self.att_ref = self.dot_att_ref * self.dt + att_ref_old
-
-        # 内环由FNTSMC给出
-        torque = self.att_control(self.att_ref, self.dot_att_ref, np.zeros(3), att_only=False)  # 内环fntsmc控制
+        # 内环由RL控制给出
+        torque = action.copy()
 
         # 合并成总控制量：油门 + 三个转矩
-        a = np.concatenate(([uf], torque))  # 真实控制量
+        action4uav = np.concatenate(([uf], torque))  # 真实控制量
 
-        self.update(action=a)
-        self.error = self.uav_pos() - self.pos_ref
-        # self.vx, self.vy, self.vz = np.clip(self.uav_vel(), self.vel_min, self.vel_max)   # 速度限制
-        # self.vz = 0
+        self.update(action=action4uav)
+        self.error = self.uav_att() - self.att_ref
 
         self.is_Terminal()
         self.next_state = self.state_norm()
@@ -184,7 +176,7 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         self.image = np.ones([self.height, self.width, 3], np.uint8) * 255
         self.image_copy = self.image.copy()
 
-        self.error = self.uav_pos() - self.pos_ref
+        self.error = self.uav_att() - self.att_ref
         self.initial_state = self.state_norm()
         self.current_state = self.initial_state.copy()
         self.next_state = self.initial_state.copy()
