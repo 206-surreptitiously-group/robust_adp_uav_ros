@@ -1,6 +1,8 @@
 import math
 import os
 import sys
+
+import numpy as np
 from numpy import deg2rad
 
 from algorithm.rl_base.rl_base import rl_base
@@ -14,7 +16,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__) + '/../'))
 
 
 class uav_inner_loop(rl_base, uav_att_ctrl):
-    def __init__(self, UAV_param: uav_param, att_ctrl_param: fntsmc_param):
+    def __init__(self, UAV_param: uav_param, att_ctrl_param: fntsmc_param, ref_amplitude: np.ndarray,
+                 ref_period: np.ndarray, ref_bias_a: np.ndarray, ref_bias_phase: np.ndarray):
         rl_base.__init__(self)
         uav_att_ctrl.__init__(self, UAV_param, att_ctrl_param)
 
@@ -22,18 +25,26 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         self.name = 'uav_inner_loop'
 
         self.collector = data_collector(round(self.time_max / self.dt))
-        self.ref = np.zeros(3)
-        self.dot_ref = np.zeros(3)
+
+        '''Define parameters for signal generator'''
+        self.ref_amplitude = ref_amplitude
+        self.ref_period = ref_period
+        self.ref_bias_a = ref_bias_a
+        self.ref_bias_phase = ref_bias_phase
+        '''Define parameters for signal generator'''
+
+        self.ref, self.dot_ref, _, _ = ref_inner(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
+                                                 self.ref_bias_phase)
         self.error = self.uav_att() - self.ref
         self.dot_error = self.dot_rho1() - self.dot_ref
 
         '''state action limitation'''
         self.static_gain = 1.0
 
-        self.e_att_max = np.array([deg2rad(45), deg2rad(45), deg2rad(120)])
-        self.e_att_min = -np.array([deg2rad(45), deg2rad(45), deg2rad(120)])
-        self.e_dot_att_max = np.array([deg2rad(45), deg2rad(45), deg2rad(120)])
-        self.e_dot_att_min = -np.array([deg2rad(45), deg2rad(45), deg2rad(120)])
+        self.e_att_max = np.array([deg2rad(60), deg2rad(60), deg2rad(120)])
+        self.e_att_min = -np.array([deg2rad(60), deg2rad(60), deg2rad(120)])
+        self.e_dot_att_max = np.array([deg2rad(60), deg2rad(60), deg2rad(120)])
+        self.e_dot_att_min = -np.array([deg2rad(60), deg2rad(60), deg2rad(120)])
         self.torque_min = -0.3
         self.torque_max = 0.3
         '''state action limitation'''
@@ -81,7 +92,7 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         """
         计算奖励
         """
-        Qx, Qv, R = 5, 0.1, 0.05
+        Qx, Qv, R = 1, 0.1, 0.01
         r1 = - np.linalg.norm(self.error) ** 2 * Qx
         r2 = - np.linalg.norm(self.dot_error) ** 2 * Qv
         # norm_action = (np.array(self.current_action) * 2 - self.u_max - self.u_min) / (self.u_max - self.u_min)
@@ -110,6 +121,8 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         self.torque = action.copy()
 
         self.update(action=self.torque)
+        self.ref, self.dot_ref, _, _ = ref_inner(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
+                                                 self.ref_bias_phase)
         self.error = self.uav_att() - self.ref
         self.dot_error = self.dot_rho1() - self.dot_ref
 
@@ -163,8 +176,8 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         self.image = np.ones([self.height, self.width, 3], np.uint8) * 255
         self.image_copy = self.image.copy()
 
-        self.ref = np.zeros(3)
-        self.dot_ref = np.zeros(3)
+        self.ref, self.dot_ref, _, _ = ref_inner(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
+                                                 self.ref_bias_phase)
         self.error = self.uav_att() - self.ref
         self.dot_error = self.dot_rho1() - self.dot_ref
         self.initial_state = self.state_norm()
@@ -180,14 +193,26 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
 
     def reset_random(self):
         """
-        随机生成目标姿态角和初始姿态角
+        随机生成姿态跟踪参考信号并重置环境
         """
         self.reset()
-        self.ref = self.generate_random_att(offset=deg2rad(1))  # 随机目标姿态
-        # self.phi, self.theta, self.psi = self.generate_random_att(offset=deg2rad(1))  # 随机初始姿态
+        self.ref_amplitude, self.ref_period, self.ref_bias_a, self.ref_bias_phase = self.generate_random_signal()
+        self.ref, self.dot_ref, _, _ = ref_inner(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
+                                                 self.ref_bias_phase)
+        self.error = self.uav_att() - self.ref
+        self.dot_error = self.dot_rho1() - self.dot_ref
+        self.initial_state = self.state_norm()
+        self.current_state = self.initial_state.copy()
+        self.next_state = self.initial_state.copy()
 
-    def generate_random_att(self, offset: float):
+    def generate_random_signal(self):
         """
-        在姿态角范围内随即选择一个姿态，offset防止姿态越界
+        随机生成参考信号参数
         """
-        return np.random.uniform(low=self.att_zone[:, 0] + offset, high=self.att_zone[:, 1] - offset)
+        amplitude = np.random.uniform(low=-np.array([np.pi / 3, np.pi / 3, np.pi / 2]),
+                                      high=np.array([np.pi / 3, np.pi / 3, np.pi / 2]))
+        period = np.random.uniform(low=np.array([1, 1, 1]), high=np.array([5, 5, 5]))
+        bias_a = np.array([0, 0, 0])  # 暂时不给赋值偏差防止越界
+        bias_phase = np.random.uniform(low=-np.array([np.pi / 2, np.pi / 2, np.pi / 2]),
+                                       high=np.array([np.pi / 2, np.pi / 2, np.pi / 2]))
+        return amplitude, period, bias_a, bias_phase

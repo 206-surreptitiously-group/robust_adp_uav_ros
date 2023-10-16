@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import numpy as np
 from matplotlib import pyplot as plt
+from numpy import deg2rad
 
 from environment.envs.UAV.ref_cmd import ref_inner
 # import rospy
@@ -114,14 +115,14 @@ def test_uav_hover_inner_loop():
 def test_uav_inner_loop():
     from environment.envs.RL.uav_inner_loop import uav_inner_loop
     # rospy.init_node(name='env_test', anonymous=False)
-
-    env = uav_inner_loop(uav_param, att_ctrl_param)
-    env.msg_print_flag = True
-    num = 0
-    ref_amplitude = np.array([np.pi / 6, np.pi / 6, np.pi / 3])
+    uav_param.att_zone = np.atleast_2d([[-deg2rad(65), deg2rad(65)], [-deg2rad(65), deg2rad(65)], [deg2rad(-120), deg2rad(120)]])
+    ref_amplitude = np.array([np.pi / 3, np.pi / 3, np.pi / 3])
     ref_period = np.array([4, 4, 4])
     ref_bias_a = np.array([0, 0, 0])
     ref_bias_phase = np.array([0., np.pi / 2, np.pi / 3])
+    env = uav_inner_loop(uav_param, att_ctrl_param, ref_amplitude, ref_period, ref_bias_a, ref_bias_phase)
+    env.msg_print_flag = True
+    num = 0
     while num < 1:
         env.reset()
         r = 0
@@ -134,10 +135,12 @@ def test_uav_inner_loop():
             r += env.reward
         print(r)
         num += 1
-    env.collector.plot_throttle()
+    env.collector.plot_pqr()
     env.collector.plot_att()
+    env.collector.plot_torque()
     plt.show()
 
 
 if __name__ == '__main__':
+    # test_uav_hover_outer_loop()
     test_uav_inner_loop()

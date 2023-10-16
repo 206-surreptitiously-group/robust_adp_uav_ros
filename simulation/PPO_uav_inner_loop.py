@@ -7,14 +7,14 @@ import time
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from numpy import rad2deg
+from numpy import deg2rad
 
 from environment.Color import Color
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 # import rospy
-from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop as env
+from environment.envs.RL.uav_inner_loop import uav_inner_loop as env
 from environment.envs.UAV.ref_cmd import generate_uncertainty
 from environment.envs.UAV.uav import uav_param
 from environment.envs.UAV.FNTSMC import fntsmc_param
@@ -24,7 +24,7 @@ from common.common_cls import *
 optPath = '../../datasave/network'
 show_per = 1
 timestep = 0
-ENV = 'PPO-uav-hover-outer-loop'
+ENV = 'PPO-uav-inner-loop'
 
 
 def setup_seed(seed):
@@ -181,11 +181,19 @@ if __name__ == '__main__':
     simulation_path = log_dir + datetime.datetime.strftime(datetime.datetime.now(),
                                                            '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '/'
     os.mkdir(simulation_path)
-    TRAIN = False
-    RETRAIN = True
+    TRAIN = True
+    RETRAIN = False
     TEST = not TRAIN
 
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-1, 3, 2]))
+    env = env(uav_param, att_ctrl_param,
+              ref_amplitude=np.array([np.pi / 3, np.pi / 3, np.pi / 2]),
+              ref_period=np.array([4, 4, 4]),
+              ref_bias_a=np.array([0, 0, 0]),
+              ref_bias_phase=np.array([0., np.pi / 2, np.pi / 3]))
+
+    # 只有姿态时范围可以给大点方便训练
+    uav_param.att_zone = np.atleast_2d(
+        [[-deg2rad(65), deg2rad(65)], [-deg2rad(65), deg2rad(65)], [deg2rad(-120), deg2rad(120)]])
     env.msg_print_flag = False  # 别疯狂打印出界了
     reward_norm = Normalization(dim=1, update=True)
     # rate = rospy.Rate(1 / env.dt)
@@ -256,11 +264,23 @@ if __name__ == '__main__':
                     index = 0
                     if train_num % 20 == 0 and train_num > 0:
                         print('========= Testing =========')
-                        average_test_r = agent.agent_evaluate(1)
+                        n = 1
+                        average_test_r = 0
+                        for i in range(n):
+                            env.reset()
+                            while not env.is_terminal:
+                                env.current_state = env.next_state.copy()
+                                action_from_actor, s, a_log_prob, s_value = agent.choose_action(env.current_state)
+                                action = agent.action_linear_trans(action_from_actor.detach().cpu().numpy().flatten())
+                                uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
+                                env.step_update(action)  # 环境更新的动作必须是实际物理动作
+                                average_test_r += env.reward
+                            env.collector.plot_att()
                         test_num += 1
+                        average_test_r = round(average_test_r / n, 3)
                         test_reward.append(average_test_r)
                         print('   Evaluating %.0f | Reward: %.2f ' % (test_num, average_test_r))
-                        temp = simulation_path + 'test_num' + '_' + str(test_num-1) + '_save/'
+                        temp = simulation_path + 'test_num' + '_' + str(test_num - 1) + '_save/'
                         os.mkdir(temp)
                         pd.DataFrame({'reward': test_reward}).to_csv(simulation_path + 'retrain_reward.csv')
                         time.sleep(0.01)
@@ -285,8 +305,8 @@ if __name__ == '__main__':
                     policy=policy,
                     policy_old=policy_old,
                     path=simulation_path)
-        agent.policy.load_state_dict(torch.load('../datasave/network/PPO_uav_hover_outer_loop/after_retrain'))
-        # agent.policy.load_state_dict(torch.load('Policy_PPO36080000'))
+        # agent.policy.load_state_dict(torch.load('../datasave/network/'))
+        agent.policy.load_state_dict(torch.load('Policy_PPO12160000'))
         test_num = 1
         r = 0
         ux, uy, uz = [], [], []

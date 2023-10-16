@@ -85,16 +85,16 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         """
         计算奖励
         """
-        Qx, Qv, R = 5, 0.1, 0.05
-        r1 = - np.linalg.norm(np.tanh(10 * self.error)) ** 2 * Qx
-        r2 = - np.linalg.norm(self.uav_vel()) ** 2 * Qv
+        Qx, Qv, R = 1, 0.1, 0.02
+        r1 = - np.linalg.norm(np.tanh(10 * self.error)) ** 2 * 0.5 * Qx - np.linalg.norm(self.error) ** 2 * 0.5 * Qx
+        r2 = - np.linalg.norm(np.tanh(10 * self.uav_vel())) ** 2 * 0.5 * Qx - np.linalg.norm(self.uav_vel()) ** 2 * 0.5 * Qv
         # norm_action = (np.array(self.current_action) * 2 - self.u_max - self.u_min) / (self.u_max - self.u_min)
         r3 = - np.linalg.norm(self.current_action) ** 2 * R
 
         r4 = 0
         # 如果因为越界终止，则给剩余时间可能取得的最大惩罚
         if self.is_pos_out() or self.is_att_out():
-            r4 = - (self.time_max - self.time) / self.dt * (Qx * np.linalg.norm(np.tanh(10 * self.error)) ** 2
+            r4 = - (self.time_max - self.time) / self.dt * (Qx * np.linalg.norm(self.error) ** 2
                                                             + Qv * np.linalg.norm(self.uav_vel()) ** 2
                                                             + R * np.linalg.norm(self.current_action) ** 2)
         self.reward = r1 + r2 + r3 + r4
