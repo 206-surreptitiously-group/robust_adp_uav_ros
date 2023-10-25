@@ -7,7 +7,7 @@ import time
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from numpy import rad2deg
+from numpy import rad2deg, deg2rad
 
 from environment.Color import Color
 
@@ -260,7 +260,7 @@ if __name__ == '__main__':
                         test_num += 1
                         test_reward.append(average_test_r)
                         print('   Evaluating %.0f | Reward: %.2f ' % (test_num, average_test_r))
-                        temp = simulation_path + 'test_num' + '_' + str(test_num-1) + '_save/'
+                        temp = simulation_path + 'test_num' + '_' + str(test_num - 1) + '_save/'
                         os.mkdir(temp)
                         pd.DataFrame({'reward': test_reward}).to_csv(simulation_path + 'retrain_reward.csv')
                         time.sleep(0.01)
@@ -289,39 +289,58 @@ if __name__ == '__main__':
         # agent.policy.load_state_dict(torch.load('Policy_PPO36080000'))
         test_num = 1
         r = 0
-        ux, uy, uz = [], [], []
-        for _ in range(test_num):
+        # '''生成一个平面圆作为目标点集合'''
+        # center = [0, 0, 2]
+        # radius = 3
+        # deg = np.linspace(deg2rad(0), deg2rad(324), 10)
+        # x = center[0] + radius * np.cos(deg)
+        # y = center[1] + radius * np.sin(deg)
+        # z = center[2]
+        # '''生成一个平面圆作为目标点集合'''
+        # ux, uy, uz = [], [], []
+        for i in range(1):
+            # for j in range(2):
+            r = 0
             env.reset()
-            env.draw_init_image()
+            # env.pos_ref = np.array([x[i], y[i], z-j])
+            # env.draw_init_image()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 _action_from_actor = agent.evaluate(env.current_state)
                 _action = agent.action_linear_trans(_action_from_actor.cpu().numpy().flatten())  # 将actor输出动作转换到实际动作范围
-                uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
+                uncertainty = generate_uncertainty(time=env.time, is_ideal=False)  # 生成干扰信号
+                env.dis = uncertainty
+                '''robust compensation'''
+                kv = np.diag([1.2, 1.2, 1.2])
+                ss = torch.tensor(env.current_state, requires_grad=True, dtype=torch.float32)
+                agent.policy.critic(ss).backward()
+                V_ = ss.grad.numpy()
+                _action -= kv @ np.tanh(1. * V_[3:])
+                '''robust compensation'''
                 env.step_update(_action)  # 环境更新的动作必须是实际物理动作
                 r += env.reward
-                ux.append(_action[0])
-                uy.append(_action[1])
-                uz.append(_action[2])
-                # print(_action)
                 # env.uav_vis.render(uav_pos=env.uav_pos(),
                 #                    uav_pos_ref=env.pos_ref,
                 #                    uav_att=env.uav_att(),
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                env.image = env.image_copy.copy()
-                env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
-                env.draw_3d_points_projection(np.atleast_2d([env.pos_ref]), [Color().Green])
-                env.draw_error(env.uav_pos(), env.pos_ref[0:3])
-                env.show_image(False)
+                # env.image = env.image_copy.copy()
+                # env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
+                # env.draw_3d_points_projection(np.atleast_2d([env.pos_ref]), [Color().Green])
+                # env.draw_error(env.uav_pos(), env.pos_ref[0:3])
+                # env.show_image(False)
+            # print(r)
+            # pd.DataFrame(np.hstack((env.collector.t, env.collector.state)),
+            #              columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'phi', 'theta', 'psi', 'p', 'q', 'r'])\
+            #     .to_csv('../datasave/data/robust_ppo_disturbances.csv', sep=',', index=False)
             print(r)
-            env.collector.plot_pos()
-            env.collector.plot_vel()
-            env.collector.plot_att()
-            env.collector.plot_throttle()
-            plt.plot(ux, label='ux')
-            plt.plot(uy, label='uy')
-            plt.plot(uz, label='uz')
-            plt.legend()
-            plt.show()
+        env.collector.plot_pos()
+        # env.collector.plot_vel()
+        # env.collector.plot_att()
+        # env.collector.plot_throttle()
+        # plt.plot(ux, label='ux')
+        # plt.plot(uy, label='uy')
+        # plt.plot(uz, label='uz')
+        # plt.legend()
+        plt.show()

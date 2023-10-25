@@ -52,10 +52,10 @@ def generate_uncertainty(time: float, is_ideal: bool = False) -> np.ndarray:
     if is_ideal:
         return np.array([0, 0, 0]).astype(float)
     else:
-        T = 5
+        T = 4
         w = 2 * np.pi / T
-        Fdx = 0.5 * np.sin(w * time) + 0.2 * np.cos(w * time)
-        Fdy = 0.5 * np.cos(w * time) + 0.2 * np.sin(w * time)
-        Fdz = 0.5 * np.sin(w * time) + 0.2 * np.cos(w * time)
+        Fdx = 0.8 * np.cos(w * time) + 0.6 * np.sin(w * time)
+        Fdy = 0.8 * np.sin(w * time) + 0.6 * np.cos(w * time)
+        Fdz = 0.8 * np.cos(w * time) + 0.6 * np.sin(w * time)
 
         return np.array([Fdx, Fdy, Fdz])
