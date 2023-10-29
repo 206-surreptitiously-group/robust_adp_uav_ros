@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from numpy import deg2rad
 
-from environment.envs.UAV.ref_cmd import ref_inner
+from environment.envs.UAV.ref_cmd import ref_inner, generate_uncertainty
 # import rospy
 from environment.envs.UAV.uav import uav_param
 from environment.envs.UAV.FNTSMC import fntsmc_param, fntsmc_pos, fntsmc_att
@@ -75,14 +76,17 @@ def test_uav_hover_outer_loop():
         while not env.is_terminal:
             action = env.pos_control(env.pos_ref, np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3))
             action = env.pos_ctrl.control
-            print(action)
+            # env.dis = generate_uncertainty(time=env.time, is_ideal=False)  # 生成干扰信号
             env.step_update(action=np.array(action))
             r += env.reward
         print(r)
         num += 1
+        # pd.DataFrame(np.hstack((env.collector.t, env.collector.state)),
+        #              columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'phi', 'theta', 'psi', 'p', 'q', 'r']) \
+        #     .to_csv('../../datasave/data/fntsmc_disturbances.csv', sep=',', index=False)
     env.collector.plot_pos()
-    env.collector.plot_throttle()
-    env.collector.plot_att()
+    # env.collector.plot_throttle()
+    # env.collector.plot_att()
     plt.show()
 
 
@@ -142,5 +146,5 @@ def test_uav_inner_loop():
 
 
 if __name__ == '__main__':
-    # test_uav_hover_outer_loop()
-    test_uav_inner_loop()
+    test_uav_hover_outer_loop()
+    # test_uav_inner_loop()

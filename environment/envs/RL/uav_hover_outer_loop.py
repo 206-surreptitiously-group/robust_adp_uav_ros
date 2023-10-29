@@ -38,8 +38,8 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         self.vel_min = -np.array([3., 3., 3.])
         self.dot_att_min = np.array([-deg2rad(60), -deg2rad(60), -deg2rad(1)])
         self.dot_att_max = np.array([deg2rad(60), deg2rad(60), deg2rad(1)])
-        self.u_min = -7
-        self.u_max = 7
+        self.u_min = -8
+        self.u_max = 8
         '''state action limitation'''
 
         '''rl_base'''

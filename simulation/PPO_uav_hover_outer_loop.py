@@ -311,11 +311,12 @@ if __name__ == '__main__':
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=False)  # 生成干扰信号
                 env.dis = uncertainty
                 '''robust compensation'''
-                kv = np.diag([1.2, 1.2, 1.2])
-                ss = torch.tensor(env.current_state, requires_grad=True, dtype=torch.float32)
-                agent.policy.critic(ss).backward()
-                V_ = ss.grad.numpy()
-                _action -= kv @ np.tanh(1. * V_[3:])
+                # g_ = np.linalg.pinv(np.diag([0, 0, 0, 1, 1, 1]))
+                # kv = np.diag([0, 0, 0, 1.1, 0.3, 1.1])
+                # ss = torch.tensor(env.current_state, requires_grad=True, dtype=torch.float32)
+                # agent.policy.critic(ss).backward()
+                # V_ = ss.grad.numpy()
+                # _action -= (g_ @ kv @ np.tanh(1 * V_))[3:]
                 '''robust compensation'''
                 env.step_update(_action)  # 环境更新的动作必须是实际物理动作
                 r += env.reward
@@ -333,7 +334,7 @@ if __name__ == '__main__':
             # print(r)
             # pd.DataFrame(np.hstack((env.collector.t, env.collector.state)),
             #              columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'phi', 'theta', 'psi', 'p', 'q', 'r'])\
-            #     .to_csv('../datasave/data/robust_ppo_disturbances.csv', sep=',', index=False)
+            #     .to_csv('../datasave/data/robust_ppo_disturbances1.csv', sep=',', index=False)
             print(r)
         env.collector.plot_pos()
         # env.collector.plot_vel()
