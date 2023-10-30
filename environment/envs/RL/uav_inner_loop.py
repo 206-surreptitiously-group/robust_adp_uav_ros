@@ -173,8 +173,8 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         self.z_min = self.pos_zone[2][0]
         self.z_max = self.pos_zone[2][1]
 
-        self.image = np.ones([self.height, self.width, 3], np.uint8) * 255
-        self.image_copy = self.image.copy()
+        self.att_image = np.ones([self.att_h, self.att_w, 3], np.uint8) * 255
+        self.att_image_copy = self.image.copy()
 
         self.ref, self.dot_ref, _, _ = ref_inner(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
                                                  self.ref_bias_phase)
@@ -209,10 +209,11 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         """
         随机生成参考信号参数
         """
-        amplitude = np.random.uniform(low=-np.array([np.pi / 3, np.pi / 3, np.pi / 2]),
-                                      high=np.array([np.pi / 3, np.pi / 3, np.pi / 2]))
-        period = np.random.uniform(low=np.array([1, 1, 1]), high=np.array([5, 5, 5]))
-        bias_a = np.array([0, 0, 0])  # 暂时不给赋值偏差防止越界
-        bias_phase = np.random.uniform(low=-np.array([np.pi / 2, np.pi / 2, np.pi / 2]),
-                                       high=np.array([np.pi / 2, np.pi / 2, np.pi / 2]))
+        amplitude = np.array([
+            np.random.uniform(low=0, high=self.phi_max if self.phi_max < np.pi / 3 else np.pi / 3),
+            np.random.uniform(low=0, high=self.theta_max if self.theta_max < np.pi / 3 else np.pi / 3),
+            np.random.uniform(low=0, high=self.psi_max if self.psi_max < np.pi / 2 else np.pi / 2)])
+        period = np.random.uniform(low=3, high=6, size=3)  # 随机生成周期
+        bias_a = np.zeros(3)
+        bias_phase = np.random.uniform(low=0, high=np.pi / 2, size=3)
         return amplitude, period, bias_a, bias_phase

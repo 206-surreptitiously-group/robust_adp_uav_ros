@@ -33,7 +33,7 @@ def setup_seed(seed):
     random.seed(seed)
 
 
-setup_seed(2162)
+# setup_seed(2162)
 
 '''Parameter list of the quadrotor'''
 DT = 0.01
@@ -53,22 +53,10 @@ uav_param.angle0 = np.array([0, 0, 0])
 uav_param.pqr0 = np.array([0, 0, 0])
 uav_param.dt = DT
 uav_param.time_max = 10
-uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
+# 只有姿态时范围可以给大点方便训练
+uav_param.att_zone = np.atleast_2d(
+    [[-deg2rad(90), deg2rad(90)], [-deg2rad(90), deg2rad(90)], [deg2rad(-120), deg2rad(120)]])
 '''Parameter list of the quadrotor'''
-
-'''Parameter list of the attitude controller'''
-att_ctrl_param = fntsmc_param()
-att_ctrl_param.k1 = np.array([25, 25, 40])
-att_ctrl_param.k2 = np.array([0.1, 0.1, 0.2])
-att_ctrl_param.alpha = np.array([2.5, 2.5, 2.5])
-att_ctrl_param.beta = np.array([0.99, 0.99, 0.99])
-att_ctrl_param.gamma = np.array([1.5, 1.5, 1.2])
-att_ctrl_param.lmd = np.array([2.0, 2.0, 2.0])
-att_ctrl_param.dim = 3
-att_ctrl_param.dt = DT
-att_ctrl_param.ctrl0 = np.array([0., 0., 0.])
-att_ctrl_param.saturation = np.array([0.3, 0.3, 0.3])
-'''Parameter list of the attitude controller'''
 
 
 class PPOActorCritic(nn.Module):
@@ -185,15 +173,12 @@ if __name__ == '__main__':
     RETRAIN = False
     TEST = not TRAIN
 
-    env = env(uav_param, att_ctrl_param,
+    env = env(uav_param, fntsmc_param(),
               ref_amplitude=np.array([np.pi / 3, np.pi / 3, np.pi / 2]),
               ref_period=np.array([4, 4, 4]),
               ref_bias_a=np.array([0, 0, 0]),
               ref_bias_phase=np.array([0., np.pi / 2, np.pi / 3]))
 
-    # 只有姿态时范围可以给大点方便训练
-    uav_param.att_zone = np.atleast_2d(
-        [[-deg2rad(65), deg2rad(65)], [-deg2rad(65), deg2rad(65)], [deg2rad(-120), deg2rad(120)]])
     env.msg_print_flag = False  # 别疯狂打印出界了
     reward_norm = Normalization(dim=1, update=True)
     # rate = rospy.Rate(1 / env.dt)
@@ -234,7 +219,8 @@ if __name__ == '__main__':
         test_reward = []
         index = 0
         while timestep <= max_training_timestep:
-            env.reset()
+            # env.reset()
+            env.reset_random()
             sumr = 0.
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
@@ -267,7 +253,9 @@ if __name__ == '__main__':
                         n = 1
                         average_test_r = 0
                         for i in range(n):
-                            env.reset()
+                            # env.reset()
+                            env.reset_random()
+                            env.draw_att_init_image()
                             while not env.is_terminal:
                                 env.current_state = env.next_state.copy()
                                 action_from_actor, s, a_log_prob, s_value = agent.choose_action(env.current_state)
@@ -275,7 +263,9 @@ if __name__ == '__main__':
                                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                                 env.step_update(action)  # 环境更新的动作必须是实际物理动作
                                 average_test_r += env.reward
-                            env.collector.plot_att()
+                                env.att_image = env.att_image_copy.copy()
+                                env.draw_att(env.ref)
+                                env.show_att_image(iswait=False)
                         test_num += 1
                         average_test_r = round(average_test_r / n, 3)
                         test_reward.append(average_test_r)
@@ -311,8 +301,9 @@ if __name__ == '__main__':
         r = 0
         ux, uy, uz = [], [], []
         for _ in range(test_num):
-            env.reset()
-            env.draw_init_image()
+            # env.reset()
+            env.reset_random()
+            env.draw_att_init_image()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 _action_from_actor = agent.evaluate(env.current_state)
@@ -320,6 +311,9 @@ if __name__ == '__main__':
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(_action)  # 环境更新的动作必须是实际物理动作
                 r += env.reward
+                env.att_image = env.att_image_copy.copy()
+                env.draw_att(env.ref)
+                env.show_att_image(iswait=False)
                 ux.append(_action[0])
                 uy.append(_action[1])
                 uz.append(_action[2])
@@ -330,16 +324,8 @@ if __name__ == '__main__':
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                env.image = env.image_copy.copy()
-                env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
-                env.draw_3d_points_projection(np.atleast_2d([env.pos_ref]), [Color().Green])
-                env.draw_error(env.uav_pos(), env.pos_ref[0:3])
-                env.show_image(False)
             print(r)
-            env.collector.plot_pos()
-            env.collector.plot_vel()
             env.collector.plot_att()
-            env.collector.plot_throttle()
             plt.plot(ux, label='ux')
             plt.plot(uy, label='uy')
             plt.plot(uz, label='uz')

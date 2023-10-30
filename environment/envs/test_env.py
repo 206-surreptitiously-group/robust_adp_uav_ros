@@ -119,7 +119,7 @@ def test_uav_hover_inner_loop():
 def test_uav_inner_loop():
     from environment.envs.RL.uav_inner_loop import uav_inner_loop
     # rospy.init_node(name='env_test', anonymous=False)
-    uav_param.att_zone = np.atleast_2d([[-deg2rad(65), deg2rad(65)], [-deg2rad(65), deg2rad(65)], [deg2rad(-120), deg2rad(120)]])
+    uav_param.att_zone = np.atleast_2d([[-deg2rad(90), deg2rad(90)], [-deg2rad(90), deg2rad(90)], [deg2rad(-120), deg2rad(120)]])
     ref_amplitude = np.array([np.pi / 3, np.pi / 3, np.pi / 3])
     ref_period = np.array([4, 4, 4])
     ref_bias_a = np.array([0, 0, 0])
@@ -127,16 +127,19 @@ def test_uav_inner_loop():
     env = uav_inner_loop(uav_param, att_ctrl_param, ref_amplitude, ref_period, ref_bias_a, ref_bias_phase)
     env.msg_print_flag = True
     num = 0
-    while num < 1:
-        env.reset()
+
+    while num < 3:
+        env.reset_random()
+        env.draw_att_init_image()
         r = 0
         while not env.is_terminal:
-            rhod, dot_rhod, dot2_rhod, dot3_rhod = ref_inner(env.time, ref_amplitude, ref_period, ref_bias_a,
-                                                             ref_bias_phase)
-            action = env.att_control(ref=rhod, dot_ref=dot_rhod, dot2_ref=dot2_rhod)
+            action = env.att_control(ref=env.ref, dot_ref=env.dot_ref, dot2_ref=np.zeros(3))
             # print(action)
             env.step_update(action=np.array(action))
             r += env.reward
+            env.att_image = env.att_image_copy.copy()
+            env.draw_att(env.ref)
+            env.show_att_image(iswait=False)
         print(r)
         num += 1
     env.collector.plot_pqr()
@@ -146,5 +149,5 @@ def test_uav_inner_loop():
 
 
 if __name__ == '__main__':
-    test_uav_hover_outer_loop()
-    # test_uav_inner_loop()
+    # test_uav_hover_outer_loop()
+    test_uav_inner_loop()

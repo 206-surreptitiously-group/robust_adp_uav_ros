@@ -53,6 +53,7 @@ class Worker(mp.Process):
         self.device = _ppo_msg['device']
         self.loss = _ppo_msg['loss']
         self.episode = 0
+        self.rn = Normalization(dim=1, update=True)
 
     def learn(self):
         rewards = []
@@ -138,8 +139,8 @@ class Worker(mp.Process):
             self.l_pi.load_state_dict(self.g_pi.state_dict())  # 从全局 policy 中加载网络
             '''收集数据'''
             while index < self.buffer.batch_size:
-                # self.env.reset_random()
-                self.env.reset()
+                self.env.reset_random()
+                # self.env.reset()
                 while not self.env.is_terminal:  # and (not rospy.is_shutdown()):
                     self.env.current_state = self.env.next_state.copy()
                     action_from_actor, s, a_log_prob, s_value = self.choose_action(
@@ -151,7 +152,7 @@ class Worker(mp.Process):
                     self.buffer.append(s=self.env.current_state,
                                        a=action_from_actor,
                                        log_prob=a_log_prob.numpy(),
-                                       r=self.env.reward,
+                                       r=self.rn(self.env.reward),
                                        sv=s_value.numpy(),
                                        done=1.0 if self.env.is_terminal else 0.0,
                                        index=index)
@@ -252,9 +253,12 @@ class Distributed_PPO:
                 for i in range(eval_num):
                     if i % 100 == 0:
                         print('测试: ', i)
-                    # self.env.reset_random()
-                    self.env.reset()
-                    self.env.draw_init_image()
+                    self.env.reset_random()
+                    # self.env.reset()
+                    '''vis position control'''
+                    # self.env.draw_init_image()
+                    '''vis attitude control'''
+                    self.env.draw_att_init_image()
                     while not self.env.is_terminal:  # and (not rospy.is_shutdown()):
                         self.env.current_state = self.env.next_state.copy()
                         action_from_actor = self.evaluate(self.env.current_state)
@@ -269,12 +273,19 @@ class Distributed_PPO:
                         #                         uav_att_ref=self.env.att_ref,
                         #                         d=4 * self.env.d)
                         # self.rate.sleep()
-                        self.env.image = self.env.image_copy.copy()
-                        self.env.draw_3d_points_projection(np.atleast_2d([self.env.uav_pos()]), [Color().Red])
-                        self.env.draw_3d_points_projection(np.atleast_2d([self.env.pos_ref[0:3]]), [Color().Green])
-                        self.env.draw_error(self.env.uav_pos(), self.env.pos_ref[0:3])
-                        self.env.show_image(False)
+                        '''vis position control'''
+                        # self.env.image = self.env.image_copy.copy()
+                        # self.env.draw_3d_points_projection(np.atleast_2d([self.env.uav_pos()]), [Color().Red])
+                        # self.env.draw_3d_points_projection(np.atleast_2d([self.env.pos_ref[0:3]]), [Color().Green])
+                        # self.env.draw_error(self.env.uav_pos(), self.env.pos_ref[0:3])
+                        # self.env.show_image(False)
+                        '''vis attitude control'''
+                        self.env.att_image = self.env.att_image_copy.copy()
+                        self.env.draw_att(self.env.ref)
+                        self.env.show_att_image(iswait=False)
                 print("Average Reward: " + str(r / eval_num))
+                self.evaluate_record.append(r / eval_num)
+                self.save_evaluation_record()
                 # error.append(np.linalg.norm(self.env.error))
                 # cv.destroyAllWindows()
         # error = np.array(error)

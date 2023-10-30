@@ -59,16 +59,18 @@ class UAV:
         self.torque = np.array([0., 0., 0.]).astype(float)  # 转矩
         self.terminal_flag = 0
 
+        '''set safe zone'''
         self.pos_zone = param.pos_zone
         self.att_zone = param.att_zone
-        self.x_min = self.pos_zone[0][0]
-        self.x_max = self.pos_zone[0][1]
-        self.y_min = self.pos_zone[1][0]
-        self.y_max = self.pos_zone[1][1]
-        self.z_min = self.pos_zone[2][0]
-        self.z_max = self.pos_zone[2][1]
+        self.phi_min, self.phi_max = self.att_zone[0]
+        self.theta_min, self.theta_max = self.att_zone[1]
+        self.psi_min, self.psi_max = self.att_zone[2]
+        self.x_min, self.x_max = self.pos_zone[0]
+        self.y_min, self.y_max = self.pos_zone[1]
+        self.z_min, self.z_max = self.pos_zone[2]
+        '''set safe zone'''
 
-        '''opencv visualization'''
+        '''opencv visualization for position control'''
         self.width = 1200
         self.height = 400
         self.x_offset = 40
@@ -86,7 +88,16 @@ class UAV:
         self.pmy_p2 = (self.height - 2 * self.y_offset) / dz
         self.pmx_p3 = self.wp / dz
         self.pmy_p3 = (self.height - 2 * self.y_offset) / dx
-        '''opencv visualization'''
+        '''opencv visualization for position control'''
+
+        '''opencv visualization for attitude control'''
+        self.att_w = 900
+        self.att_h = 300
+        self.att_offset = 10  # 图与图之间的间隔
+        self.att_image = np.ones([self.att_h, self.att_w, 3], np.uint8) * 255
+        self.att_image_copy = self.image.copy()
+        self.att_image_r = int(0.35 * self.att_w / 3)
+        '''opencv visualization for attitude control'''
 
         self.msg_print_flag = True
 
@@ -324,6 +335,71 @@ class UAV:
         self.draw_axis(6, 6, 6)
         self.image_copy = self.image.copy()
 
+    def draw_att_init_image(self):
+        x1 = int(self.att_w / 3)
+        x2 = int(2 * self.att_w / 3)
+        y = int(self.att_h / 2) + 15
+
+        c = [(int(x1 / 2), y), (x1 + int(x1 / 2), y), (2 * x1 + int(x1 / 2), y)]
+
+        cv.line(self.att_image, (x1, 0), (x1, self.att_h), Color().Black, 1, cv.LINE_AA)
+        cv.line(self.att_image, (x2, 0), (x2, self.att_h), Color().Black, 1, cv.LINE_AA)
+
+        for _c in c:
+            cv.circle(self.att_image, _c, self.att_image_r, Color().Orange, 2, cv.LINE_AA)
+            cv.circle(self.att_image, _c, 5, Color().Black, -1)
+            cv.line(self.att_image, (_c[0], _c[1] + self.att_image_r), (_c[0], _c[1] - self.att_image_r), Color().Black,
+                    1, cv.LINE_AA)
+            cv.line(self.att_image, (_c[0] - self.att_image_r, _c[1]), (_c[0] + self.att_image_r, _c[1]), Color().Black,
+                    1, cv.LINE_AA)
+            cv.putText(self.att_image, '0', (_c[0] - 7, _c[1] - self.att_image_r - 5), cv.FONT_HERSHEY_COMPLEX, 0.6,
+                       Color().Red, 1)
+            cv.putText(self.att_image, '-90', (_c[0] - self.att_image_r - 45, _c[1] + 4), cv.FONT_HERSHEY_COMPLEX, 0.6,
+                       Color().Red, 1)
+            cv.putText(self.att_image, '90', (_c[0] + self.att_image_r + 7, _c[1] + 4), cv.FONT_HERSHEY_COMPLEX, 0.6,
+                       Color().Red, 1)
+            cv.putText(self.att_image, '-180', (_c[0] - 60, _c[1] + self.att_image_r + 15), cv.FONT_HERSHEY_COMPLEX,
+                       0.6, Color().Red, 1)
+            cv.putText(self.att_image, '180', (_c[0] + 5, _c[1] + self.att_image_r + 15), cv.FONT_HERSHEY_COMPLEX, 0.6,
+                       Color().Red, 1)
+
+        cv.putText(self.att_image, 'roll', (int(x1 / 2 - 20), 25), cv.FONT_HERSHEY_COMPLEX, 0.8, Color().Blue, 1)
+        cv.putText(self.att_image, 'pitch', (int(x1 + x1 / 2 - 28), 25), cv.FONT_HERSHEY_COMPLEX, 0.8, Color().Blue, 1)
+        cv.putText(self.att_image, 'yaw', (int(2 * x1 + x1 / 2 - 20), 25), cv.FONT_HERSHEY_COMPLEX, 0.8, Color().Blue,
+                   1)
+
+        self.att_image_copy = self.att_image.copy()
+
+    def draw_att(self, ref_att: np.ndarray):
+        x1 = int(self.att_w / 3)
+        y = int(self.att_h / 2) + 15
+        c = [(int(x1 / 2), y), (x1 + int(x1 / 2), y), (2 * x1 + int(x1 / 2), y)]
+
+        for _c, _a, _ref_a in zip(c, self.uav_att(), ref_att):
+            px = _c[0] + int(self.att_image_r * np.cos(np.pi / 2 - _a))
+            py = _c[1] - int(self.att_image_r * np.sin(np.pi / 2 - _a))
+            px2 = _c[0] + int(self.att_image_r * np.cos(np.pi / 2 - _ref_a))
+            py2 = _c[1] - int(self.att_image_r * np.sin(np.pi / 2 - _ref_a))
+            _e = (_ref_a - _a) * 180 / np.pi
+            _r = (_c[0] + self.att_image_r - 55, _c[1] - self.att_image_r - 15)
+            cv.line(self.att_image, _c, (px, py), Color().Blue, 2, cv.LINE_AA)
+            cv.line(self.att_image, _c, (px2, py2), Color().Red, 2, cv.LINE_AA)
+            cv.putText(self.att_image, 'e: %.1f' % _e, _r, cv.FONT_HERSHEY_COMPLEX, 0.7, Color().Purple, 1)
+            cv.putText(self.att_image, '%.1f' % (_a * 180 / np.pi), (px, py), cv.FONT_HERSHEY_COMPLEX, 0.7,
+                       Color().Purple, 1)
+
+        _str = 't = %.2f' % self.time
+        _r2 = (c[0][0] - self.att_image_r - 40, c[0][1] - self.att_image_r - 15)
+        cv.putText(self.att_image, _str, _r2, cv.FONT_HERSHEY_COMPLEX, 0.6, Color().Purple, 1)
+
+    def show_att_image(self, iswait: bool = False):
+        if iswait:
+            cv.imshow('Attitude', self.att_image)
+            cv.waitKey(0)
+        else:
+            cv.imshow('Attitude', self.att_image)
+            cv.waitKey(1)
+
     def show_image(self, iswait: bool = False):
         if iswait:
             cv.imshow('Projection', self.image)
@@ -507,6 +583,8 @@ class UAV:
 
         self.image = np.ones([self.height, self.width, 3], np.uint8) * 255
         self.image_copy = self.image.copy()
+        self.att_image = np.ones([self.att_h, self.att_w, 3], np.uint8) * 255
+        self.att_image_copy = self.image.copy()
 
     def reset_with_param(self, new_param: uav_param):
         self.param = new_param
