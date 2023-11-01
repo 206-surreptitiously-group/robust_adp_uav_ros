@@ -245,7 +245,7 @@ class Distributed_PPO:
                 training_num_temp = self.global_training_num.value  # 记录一下当前的数字，因为测试和学习同时进行的，号码容易窜
                 self.eval_policy.load_state_dict(self.global_policy.state_dict())  # 复制 global policy
                 print('...saving check point... ', int(training_num_temp))
-                self.global_policy.save_checkpoint(name='Policy_PPO', path=self.path, num=training_num_temp)
+                self.global_policy.save_checkpoint(name='Policy_PPO', path=self.path, num=int(training_num_temp / 300)-1)
                 # self.save_models()
                 eval_num = 3
                 r = 0
@@ -326,7 +326,7 @@ class Distributed_PPO:
 		:return:
 		"""
         print('...loading checkpoint...')
-        self.global_policy.load_state_dict(torch.load(path + 'Policy_ppo'))
+        self.global_policy.load_state_dict(torch.load(path))
 
     def DPPO_info(self):
         print('number of process:', self.num_of_pro)

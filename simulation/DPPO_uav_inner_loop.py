@@ -31,7 +31,7 @@ def setup_seed(seed):
     random.seed(seed)
 
 
-# setup_seed(2162)
+setup_seed(5846)
 os.environ["OMP_NUM_THREADS"] = "1"
 
 '''Parameter list of the quadrotor'''
@@ -168,8 +168,8 @@ if __name__ == '__main__':
                                                            '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '/'
     os.mkdir(simulation_path)
 
-    TRAIN = True
-    RETRAIN = False
+    TRAIN = False
+    RETRAIN = True
     TEST = not TRAIN
 
     ref_amplitude = np.array([np.pi / 3, np.pi / 3, np.pi / 3])
@@ -196,7 +196,7 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'EvalPolicy',
                                            simulation_path)
         if RETRAIN:
-            agent.global_policy.load_state_dict(torch.load('Policy_PPO600'))
+            agent.global_policy.load_state_dict(torch.load('Policy_PPO47400'))
             '''如果修改了奖励函数，则原来的critic网络已经不起作用了，需要重新初始化'''
             agent.global_policy.critic_reset_orthogonal()
         agent.global_policy.share_memory()
@@ -234,19 +234,23 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                            'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
-        agent.load_models(optPath + 'PPO_uav_hover_outer_loop/')
+        agent.load_models(optPath + 'DPPO_uav_inner_loop/before_retrain')
+        # agent.load_models('')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
         env.msg_print_flag = True
-        test_num = 1
+        test_num = 5
+        average_r = 0
         for _ in range(test_num):
             env.reset_random()
-            env.draw_init_image()
+            env.draw_att_init_image()
+            r = 0
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 action_from_actor = agent.evaluate(env.current_state).numpy()
                 action = agent.action_linear_trans(action_from_actor.flatten())  # 将actor输出动作转换到实际动作范围
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(action)  # 环境更新的动作必须是实际物理动作
+                r += env.reward
                 # env.uav_vis.render(uav_pos=env.uav_pos(),
                 #                    uav_pos_ref=env.pos_ref,
                 #                    uav_att=env.uav_att(),
@@ -256,7 +260,10 @@ if __name__ == '__main__':
                 env.att_image = env.att_image_copy.copy()
                 env.draw_att(env.ref)
                 env.show_att_image(iswait=False)
-        env.collector.plot_pos()
-        env.collector.plot_vel()
-        env.collector.plot_throttle()
-        plt.show()
+            print(r)
+            average_r += r
+        print(average_r / test_num)
+        # env.collector.plot_pos()
+        # env.collector.plot_vel()
+        # env.collector.plot_throttle()
+        # plt.show()

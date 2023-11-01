@@ -95,15 +95,16 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         Qx, Qv, R = 1, 0.1, 0.01
         r1 = - np.linalg.norm(self.error) ** 2 * Qx
         r2 = - np.linalg.norm(self.dot_error) ** 2 * Qv
-        # norm_action = (np.array(self.current_action) * 2 - self.u_max - self.u_min) / (self.u_max - self.u_min)
+        '''robust reward function for retrain'''
+        r1 -= np.linalg.norm(np.tanh(10 * self.error)) ** 2 * Qx
+        r2 -= np.linalg.norm(np.tanh(10 * self.dot_error)) ** 2 * Qv
+        '''robust reward function for retrain'''
         r3 = - np.linalg.norm(self.current_action) ** 2 * R
 
         r4 = 0
         # 如果因为越界终止，则给剩余时间可能取得的最大惩罚
         if self.is_att_out():
-            r4 = - (self.time_max - self.time) / self.dt * (Qx * np.linalg.norm(self.error) ** 2
-                                                            + Qv * np.linalg.norm(self.dot_error) ** 2
-                                                            + R * np.linalg.norm(self.current_action) ** 2)
+            r4 = (self.time_max - self.time) / self.dt * (r1 + r2 + r3)
         self.reward = r1 + r2 + r3 + r4
 
     def is_Terminal(self, param=None):
