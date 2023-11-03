@@ -234,7 +234,7 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                            'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
-        agent.load_models(optPath + 'DPPO_uav_inner_loop/before_retrain')
+        agent.load_models(optPath + 'DPPO_uav_inner_loop/after_retrain')
         # agent.load_models('')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
         env.msg_print_flag = True
@@ -242,7 +242,7 @@ if __name__ == '__main__':
         average_r = 0
         for _ in range(test_num):
             env.reset_random()
-            env.draw_att_init_image()
+            env.init_image()
             r = 0
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
@@ -257,9 +257,7 @@ if __name__ == '__main__':
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                env.att_image = env.att_image_copy.copy()
-                env.draw_att(env.ref)
-                env.show_att_image(iswait=False)
+                env.draw_image(isWait=False)
             print(r)
             average_r += r
         print(average_r / test_num)

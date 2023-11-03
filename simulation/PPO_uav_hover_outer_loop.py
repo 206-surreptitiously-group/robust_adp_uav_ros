@@ -303,7 +303,7 @@ if __name__ == '__main__':
             r = 0
             env.reset()
             # env.pos_ref = np.array([x[i], y[i], z-j])
-            # env.draw_init_image()
+            # env.init_image()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 _action_from_actor = agent.evaluate(env.current_state)
@@ -326,11 +326,7 @@ if __name__ == '__main__':
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                # env.image = env.image_copy.copy()
-                # env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
-                # env.draw_3d_points_projection(np.atleast_2d([env.pos_ref]), [Color().Green])
-                # env.draw_error(env.uav_pos(), env.pos_ref[0:3])
-                # env.show_image(False)
+                # env.draw_image(isWait=False)
             # print(r)
             # pd.DataFrame(np.hstack((env.collector.t, env.collector.state)),
             #              columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'phi', 'theta', 'psi', 'p', 'q', 'r'])\

@@ -30,7 +30,7 @@ def setup_seed(seed):
     random.seed(seed)
 
 
-setup_seed(2162)
+setup_seed(1134)
 os.environ["OMP_NUM_THREADS"] = "1"
 
 '''Parameter list of the quadrotor'''
@@ -162,7 +162,7 @@ if __name__ == '__main__':
                                                            '%Y-%m-%d-%H-%M-%S') + '-' + ENV + '/'
     os.mkdir(simulation_path)
 
-    TRAIN = True
+    TRAIN = False
     RETRAIN = False
     TEST = not TRAIN
 
@@ -222,13 +222,13 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                            'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
-        agent.load_models(optPath + 'PPO_uav_hover_outer_loop/')
+        agent.load_models(optPath + 'DPPO_uav_hover_outer_loop/after_retrain')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
         env.msg_print_flag = True
         test_num = 1
         for _ in range(test_num):
-            env.reset()
-            env.draw_init_image()
+            env.reset_random()
+            env.init_image()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 action_from_actor = agent.evaluate(env.current_state).numpy()
@@ -241,11 +241,7 @@ if __name__ == '__main__':
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                env.image = env.image_copy.copy()
-                env.draw_3d_points_projection(np.atleast_2d([env.uav_pos()]), [Color().Red])
-                env.draw_3d_points_projection(np.atleast_2d([env.pos_ref]), [Color().Green])
-                env.draw_error(env.uav_pos(), env.pos_ref[0:3])
-                env.show_image(False)
+                env.draw_image(isWait=False)
         env.collector.plot_pos()
         env.collector.plot_vel()
         env.collector.plot_throttle()

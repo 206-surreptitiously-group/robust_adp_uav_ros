@@ -255,10 +255,7 @@ class Distributed_PPO:
                         print('测试: ', i)
                     self.env.reset_random()
                     # self.env.reset()
-                    '''vis position control'''
-                    # self.env.draw_init_image()
-                    '''vis attitude control'''
-                    self.env.draw_att_init_image()
+                    self.env.init_image()
                     while not self.env.is_terminal:  # and (not rospy.is_shutdown()):
                         self.env.current_state = self.env.next_state.copy()
                         action_from_actor = self.evaluate(self.env.current_state)
@@ -273,16 +270,7 @@ class Distributed_PPO:
                         #                         uav_att_ref=self.env.att_ref,
                         #                         d=4 * self.env.d)
                         # self.rate.sleep()
-                        '''vis position control'''
-                        # self.env.image = self.env.image_copy.copy()
-                        # self.env.draw_3d_points_projection(np.atleast_2d([self.env.uav_pos()]), [Color().Red])
-                        # self.env.draw_3d_points_projection(np.atleast_2d([self.env.pos_ref[0:3]]), [Color().Green])
-                        # self.env.draw_error(self.env.uav_pos(), self.env.pos_ref[0:3])
-                        # self.env.show_image(False)
-                        '''vis attitude control'''
-                        self.env.att_image = self.env.att_image_copy.copy()
-                        self.env.draw_att(self.env.ref)
-                        self.env.show_att_image(iswait=False)
+                        self.env.draw_image(isWait=False)
                 print("Average Reward: " + str(r / eval_num))
                 self.evaluate_record.append(r / eval_num)
                 self.save_evaluation_record()

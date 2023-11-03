@@ -218,3 +218,11 @@ class uav_inner_loop(rl_base, uav_att_ctrl):
         bias_a = np.zeros(3)
         bias_phase = np.random.uniform(low=0, high=np.pi / 2, size=3)
         return amplitude, period, bias_a, bias_phase
+
+    def init_image(self):
+        self.draw_att_init_image()
+
+    def draw_image(self, isWait: bool):
+        self.att_image = self.att_image_copy.copy()
+        self.draw_att(self.ref)
+        self.show_att_image(isWait)

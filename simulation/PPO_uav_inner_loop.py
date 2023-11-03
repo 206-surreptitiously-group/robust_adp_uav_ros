@@ -303,7 +303,7 @@ if __name__ == '__main__':
         for _ in range(test_num):
             # env.reset()
             env.reset_random()
-            env.draw_att_init_image()
+            env.init_image()
             while not env.is_terminal:
                 env.current_state = env.next_state.copy()
                 _action_from_actor = agent.evaluate(env.current_state)
@@ -311,9 +311,7 @@ if __name__ == '__main__':
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(_action)  # 环境更新的动作必须是实际物理动作
                 r += env.reward
-                env.att_image = env.att_image_copy.copy()
-                env.draw_att(env.ref)
-                env.show_att_image(iswait=False)
+                env.draw_image(isWait=False)
                 ux.append(_action[0])
                 uy.append(_action[1])
                 uz.append(_action[2])

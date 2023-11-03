@@ -6,6 +6,7 @@ import numpy as np
 from numpy import deg2rad
 
 from algorithm.rl_base.rl_base import rl_base
+from environment.Color import Color
 from environment.envs.UAV.FNTSMC import fntsmc_att, fntsmc_param
 from environment.envs.UAV.collector import data_collector
 from environment.envs.UAV.ref_cmd import *
@@ -87,7 +88,8 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         """
         Qx, Qv, R = 1, 0.1, 0.02
         r1 = - np.linalg.norm(np.tanh(10 * self.error)) ** 2 * 0.5 * Qx - np.linalg.norm(self.error) ** 2 * 0.5 * Qx
-        r2 = - np.linalg.norm(np.tanh(10 * self.uav_vel())) ** 2 * 0.5 * Qx - np.linalg.norm(self.uav_vel()) ** 2 * 0.5 * Qv
+        r2 = - np.linalg.norm(np.tanh(10 * self.uav_vel())) ** 2 * 0.5 * Qx - np.linalg.norm(
+            self.uav_vel()) ** 2 * 0.5 * Qv
         # norm_action = (np.array(self.current_action) * 2 - self.u_max - self.u_min) / (self.u_max - self.u_min)
         r3 = - np.linalg.norm(self.current_action) ** 2 * R
 
@@ -209,3 +211,13 @@ class uav_hover_outer_loop(rl_base, uav_pos_ctrl):
         在飞行范围内随即选择一个点，offset防止过于贴近边界
         """
         return np.random.uniform(low=self.pos_zone[:, 0] + offset, high=self.pos_zone[:, 1] - offset)
+
+    def init_image(self):
+        self.draw_init_image()
+
+    def draw_image(self, isWait: bool):
+        self.image = self.image_copy.copy()
+        self.draw_3d_points_projection(np.atleast_2d([self.uav_pos()]), [Color().Red])
+        self.draw_3d_points_projection(np.atleast_2d([self.pos_ref[0:3]]), [Color().Green])
+        self.draw_error(self.uav_pos(), self.pos_ref[0:3])
+        self.show_image(isWait)
