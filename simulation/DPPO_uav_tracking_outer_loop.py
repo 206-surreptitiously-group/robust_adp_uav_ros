@@ -3,13 +3,12 @@ import datetime
 import os
 import sys
 import matplotlib.pyplot as plt
-
-from environment.Color import Color
+from numpy import deg2rad
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 # import rospy
-from environment.envs.RL.uav_hover_outer_loop import uav_hover_outer_loop as env
+from environment.envs.RL.uav_tracking_outer_loop import uav_tracking_outer_loop as env
 from environment.envs.UAV.ref_cmd import generate_uncertainty
 from environment.envs.UAV.uav import uav_param
 from environment.envs.UAV.FNTSMC import fntsmc_param
@@ -21,7 +20,7 @@ import torch.multiprocessing as mp
 optPath = '../datasave/network/'
 show_per = 1
 timestep = 0
-ENV = 'DPPO-uav-hover-outer-loop'
+ENV = 'DPPO-uav-tracking-outer-loop'
 
 
 def setup_seed(seed):
@@ -30,7 +29,7 @@ def setup_seed(seed):
     random.seed(seed)
 
 
-setup_seed(1134)
+setup_seed(63425)
 os.environ["OMP_NUM_THREADS"] = "1"
 
 '''Parameter list of the quadrotor'''
@@ -50,8 +49,9 @@ uav_param.vel0 = np.array([0, 0, 0])
 uav_param.angle0 = np.array([0, 0, 0])
 uav_param.pqr0 = np.array([0, 0, 0])
 uav_param.dt = DT
-uav_param.time_max = 10
+uav_param.time_max = 20
 uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [0, 5]])
+uav_param.att_zone = np.atleast_2d([[deg2rad(-45), deg2rad(45)], [deg2rad(-45), deg2rad(45)], [deg2rad(-120), deg2rad(120)]])
 '''Parameter list of the quadrotor'''
 
 '''Parameter list of the attitude controller'''
@@ -181,10 +181,10 @@ if __name__ == '__main__':
     os.mkdir(simulation_path)
 
     TRAIN = False
-    RETRAIN = False
+    RETRAIN = True
     TEST = not TRAIN
 
-    env = env(uav_param, fntsmc_param(), att_ctrl_param, target0=np.array([-1, 3, 2]))
+    env = env(uav_param, fntsmc_param(), att_ctrl_param, np.ones(3), np.ones(3), np.ones(3), np.ones(3))
     env.msg_print_flag = False  # 别疯狂打印出界了
     # rate = rospy.Rate(1 / env.dt)
 
@@ -192,10 +192,10 @@ if __name__ == '__main__':
         '''1. 启动多进程'''
         mp.set_start_method('spawn', force=True)
         '''2. 定义DPPO参数'''
-        process_num = 15
+        process_num = 10
         actor_lr = 1e-5 / min(process_num, 5)
         critic_lr = 1e-4 / min(process_num, 5)
-        action_std = 0.8
+        action_std = 0.9
         k_epo_init = 100
         agent = DPPO(env=env, actor_lr=actor_lr, critic_lr=critic_lr, num_of_pro=process_num, path=simulation_path)
         '''3. 重新加载全局网络和优化器，这是必须的操作，考虑到不同学习环境设计不同的网络结构，训练前要重写PPOActorCritic'''
@@ -204,7 +204,7 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'EvalPolicy',
                                            simulation_path)
         if RETRAIN:
-            agent.global_policy.load_state_dict(torch.load('Policy_PPO600'))
+            agent.global_policy.load_state_dict(torch.load('Policy_PPO241'))
             '''如果修改了奖励函数，则原来的critic网络已经不起作用了，需要重新初始化'''
             agent.global_policy.critic_reset_orthogonal()
         agent.global_policy.share_memory()
@@ -242,11 +242,14 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                            'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
-        agent.load_models(optPath + 'DPPO_uav_hover_outer_loop/after_retrain')
+        agent.load_models(optPath + 'DPPO_uav_tracking_outer_loop/retrain2')
+        # agent.load_models('retrain2')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
         env.msg_print_flag = True
-        test_num = 1
+        test_num = 3
+        aver_r = 0
         for _ in range(test_num):
+            r = 0
             env.reset_random()
             env.init_image()
             while not env.is_terminal:
@@ -255,14 +258,19 @@ if __name__ == '__main__':
                 action = agent.action_linear_trans(action_from_actor.flatten())  # 将actor输出动作转换到实际动作范围
                 uncertainty = generate_uncertainty(time=env.time, is_ideal=True)  # 生成干扰信号
                 env.step_update(action)  # 环境更新的动作必须是实际物理动作
+                r += env.reward
+                env.draw_image(isWait=False)
                 # env.uav_vis.render(uav_pos=env.uav_pos(),
                 #                    uav_pos_ref=env.pos_ref,
                 #                    uav_att=env.uav_att(),
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                env.draw_image(isWait=False)
-        env.collector.plot_pos()
-        env.collector.plot_vel()
-        env.collector.plot_throttle()
-        plt.show()
+            aver_r += r
+            env.collector.plot_pos()
+            env.collector.plot_vel()
+            env.collector.plot_att()
+            env.collector.plot_pqr()
+            plt.show()
+        print(aver_r / test_num)
+

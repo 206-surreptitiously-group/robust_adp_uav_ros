@@ -4,7 +4,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from numpy import deg2rad
 
-from environment.envs.UAV.ref_cmd import ref_inner, generate_uncertainty
+from environment.envs.UAV.ref_cmd import ref_inner, generate_uncertainty, ref_uav
 # import rospy
 from environment.envs.UAV.uav import uav_param
 from environment.envs.UAV.FNTSMC import fntsmc_param, fntsmc_pos, fntsmc_att
@@ -30,8 +30,9 @@ uav_param.vel0 = np.array([0, 0, 0])
 uav_param.angle0 = np.array([0, 0, 0])
 uav_param.pqr0 = np.array([0, 0, 0])
 uav_param.dt = DT
-uav_param.time_max = 10
+uav_param.time_max = 20
 uav_param.pos_zone = np.atleast_2d([[-5, 5], [-5, 5], [-5, 5]])
+uav_param.att_zone = np.atleast_2d([[deg2rad(-45), deg2rad(45)], [deg2rad(-45), deg2rad(45)], [deg2rad(-120), deg2rad(120)]])
 '''Parameter list of the quadrotor'''
 
 '''Parameter list of the attitude controller'''
@@ -90,30 +91,39 @@ def test_uav_hover_outer_loop():
     plt.show()
 
 
-def test_uav_hover_inner_loop():
-    from environment.envs.RL.uav_hover_inner_loop import uav_hover_inner_loop
+def test_uav_tracking_outer_loop():
+    from environment.envs.RL.uav_tracking_outer_loop import uav_tracking_outer_loop
     # rospy.init_node(name='env_test', anonymous=False)
-
-    env = uav_hover_inner_loop(uav_param, pos_ctrl_param, att_ctrl_param, target0=np.array([-1, 3, 2]))
+    ref_amplitude = np.array([np.pi / 3, np.pi / 3, np.pi / 3])
+    ref_period = np.array([4, 4, 4])
+    ref_bias_a = np.array([0, 0, 0])
+    ref_bias_phase = np.array([0., np.pi / 2, np.pi / 3])
+    # uav_param.pos_zone = np.atleast_2d([[-3, 3], [-3, 3], [0, 3]])
+    env = uav_tracking_outer_loop(uav_param, pos_ctrl_param, att_ctrl_param, ref_amplitude, ref_period, ref_bias_a,
+                                  ref_bias_phase)
     env.msg_print_flag = True
     num = 0
-    phi_d = phi_d_old = 0.
-    theta_d = theta_d_old = 0.
-    dot_phi_d = (phi_d - phi_d_old) / uav_param.dt
-    dot_theta_d = (theta_d - theta_d_old) / uav_param.dt
-    while num < 1:
-        env.reset()
+    while num < 5:
+        env.reset_random()
+        env.init_image()
         r = 0
         while not env.is_terminal:
-            # print(action)
-            env.step_update(action=np.array([0.01, 0, 0]))
+            _, _, dot2_ref, _ = ref_uav(env.time, env.ref_amplitude, env.ref_period,
+                                        env.ref_bias_a,
+                                        env.ref_bias_phase)     # FNTSMC轨迹跟踪控制需要二阶导数信息
+            action = env.pos_control(env.pos_ref, env.dot_pos_ref, dot2_ref, np.zeros(3), np.zeros(3))
+            action = env.pos_ctrl.control
+            env.step_update(action=np.array(action))
             r += env.reward
+            env.draw_image(isWait=False)
         print(r)
         num += 1
-    env.collector.plot_pos()
-    env.collector.plot_throttle()
-    env.collector.plot_att()
-    plt.show()
+        env.collector.plot_pos()
+        env.collector.plot_vel()
+        env.collector.plot_throttle()
+        env.collector.plot_att()
+        env.collector.plot_pqr()
+        plt.show()
 
 
 def test_uav_inner_loop():
@@ -150,4 +160,5 @@ def test_uav_inner_loop():
 
 if __name__ == '__main__':
     # test_uav_hover_outer_loop()
-    test_uav_inner_loop()
+    # test_uav_inner_loop()
+    test_uav_tracking_outer_loop()
