@@ -257,11 +257,10 @@ if __name__ == '__main__':
                 #                    uav_att_ref=env.att_ref,
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
-                env.draw_image(isWait=False)
+                # env.draw_image(isWait=False)
+            env.collector.plot_att()
+            env.collector.plot_pqr()
+            plt.show()
             print(r)
             average_r += r
         print(average_r / test_num)
-        # env.collector.plot_pos()
-        # env.collector.plot_vel()
-        # env.collector.plot_throttle()
-        # plt.show()

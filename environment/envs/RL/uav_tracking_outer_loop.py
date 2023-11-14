@@ -48,8 +48,8 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         self.e_pos_min = -np.array([5., 5., 0.])
         self.e_vel_max = np.array([3., 3., 3.])
         self.e_vel_min = -np.array([3., 3., 3.])
-        self.dot_att_min = np.array([-deg2rad(60), -deg2rad(60), -deg2rad(1)])
-        self.dot_att_max = np.array([deg2rad(60), deg2rad(60), deg2rad(1)])
+        self.dot_att_min = np.array([-deg2rad(150), -deg2rad(150), -deg2rad(1)])
+        self.dot_att_max = np.array([deg2rad(150), deg2rad(150), deg2rad(1)])
         self.u_min = -8
         self.u_max = 8
         '''state action limitation'''
@@ -97,13 +97,14 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         """
         计算奖励
         """
-        Qx, Qv, R = 1, 0.1, 0.01
-        r1 = - np.linalg.norm(self.error) ** 2 * Qx
-        r2 = - np.linalg.norm(self.dot_error) ** 2 * Qv
+        Qx, Qv, R = 3, 0.3, 0.02
+        r1 = - np.linalg.norm(self.error) * Qx
+        r2 = - np.linalg.norm(self.dot_error) * Qv
         # robust reward function
-        r1 -= np.linalg.norm(np.tanh(10 * self.error)) ** 2 * Qx
-        r2 -= np.linalg.norm(np.tanh(10 * self.dot_error)) ** 2 * Qv
-        r3 = - np.linalg.norm(self.current_action) ** 2 * R
+        r1 -= np.linalg.norm(np.tanh(10 * self.error)) * Qx
+        r2 -= np.linalg.norm(np.tanh(10 * self.dot_error)) * Qv
+        r3 = - np.linalg.norm(self.current_action) * R
+        # r3 = 0
 
         r4 = 0
         # 如果因为越界终止，则给剩余时间可能取得的最大惩罚

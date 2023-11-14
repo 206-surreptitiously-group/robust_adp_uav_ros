@@ -29,7 +29,7 @@ def setup_seed(seed):
     random.seed(seed)
 
 
-setup_seed(63425)
+# setup_seed(5443)
 os.environ["OMP_NUM_THREADS"] = "1"
 
 '''Parameter list of the quadrotor'''
@@ -204,7 +204,7 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'EvalPolicy',
                                            simulation_path)
         if RETRAIN:
-            agent.global_policy.load_state_dict(torch.load('Policy_PPO241'))
+            agent.global_policy.load_state_dict(torch.load('Policy_PPO309'))
             '''如果修改了奖励函数，则原来的critic网络已经不起作用了，需要重新初始化'''
             agent.global_policy.critic_reset_orthogonal()
         agent.global_policy.share_memory()
@@ -242,11 +242,11 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                            'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
-        agent.load_models(optPath + 'DPPO_uav_tracking_outer_loop/retrain2')
-        # agent.load_models('retrain2')
+        # agent.load_models(optPath + 'DPPO_uav_tracking_outer_loop/retrain2')
+        agent.load_models('Policy_PPO309')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
         env.msg_print_flag = True
-        test_num = 3
+        test_num = 10
         aver_r = 0
         for _ in range(test_num):
             r = 0
@@ -267,6 +267,7 @@ if __name__ == '__main__':
                 #                    d=4 * env.d)  # to make it clearer, we increase the size 4 times
                 # rate.sleep()
             aver_r += r
+            print(r)
             env.collector.plot_pos()
             env.collector.plot_vel()
             env.collector.plot_att()
