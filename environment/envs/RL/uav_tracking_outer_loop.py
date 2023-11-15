@@ -36,8 +36,8 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
                                                            self.ref_bias_a, self.ref_bias_phase)
         '''Define parameters for signal generator'''
 
-        self.pos_ref, self.dot_pos_ref, _, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
-                                                       self.ref_bias_phase)
+        self.pos_ref, self.dot_pos_ref, self.dot2_pos_ref, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period,
+                                                                       self.ref_bias_a, self.ref_bias_phase)
         self.error = self.uav_pos() - self.pos_ref
         self.dot_error = self.uav_vel() - self.dot_pos_ref
 
@@ -55,7 +55,7 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         '''state action limitation'''
 
         '''rl_base'''
-        self.state_dim = 6  # ex ey ez evx evy evz
+        self.state_dim = 9  # ex ey ez evx evy evz dot2_pos_ref
         self.state_num = [math.inf for _ in range(self.state_dim)]
         self.state_step = [None for _ in range(self.state_dim)]
         self.state_space = [None for _ in range(self.state_dim)]
@@ -89,7 +89,8 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         """
         norm_error = self.error / (self.e_pos_max - self.e_pos_min) * self.static_gain
         norm_dot_error = self.dot_error / (self.e_vel_max - self.e_vel_min) * self.static_gain
-        norm_state = np.concatenate((norm_error, norm_dot_error))
+        norm_dot2_ref = self.dot2_pos_ref / self.u_max * self.static_gain
+        norm_state = np.concatenate((norm_error, norm_dot_error, norm_dot2_ref))
 
         return norm_state
 
@@ -97,15 +98,25 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         """
         计算奖励
         """
-        Qx, Qv, R = 3, 0.3, 0.02
-        r1 = - np.linalg.norm(self.error) * Qx
-        r2 = - np.linalg.norm(self.dot_error) * Qv
-        # robust reward function
-        r1 -= np.linalg.norm(np.tanh(10 * self.error)) * Qx
-        r2 -= np.linalg.norm(np.tanh(10 * self.dot_error)) * Qv
-        r3 = - np.linalg.norm(self.current_action) * R
-        # r3 = 0
+        '''绝对值范数'''
+        # Qx, Qv, R = 3, 0.3, 0.02
+        # r1 = - np.linalg.norm(self.error) * Qx
+        # r2 = - np.linalg.norm(self.dot_error) * Qv
+        # # robust reward function
+        # r1 -= np.linalg.norm(np.tanh(10 * self.error)) * Qx
+        # r2 -= np.linalg.norm(np.tanh(10 * self.dot_error)) * Qv
+        # r3 = - np.linalg.norm(self.current_action) * R
+        '''绝对值范数'''
 
+        '''二次型'''
+        Qx, Qv, R = 1, 0.1, 0.01
+        r1 = - np.linalg.norm(self.error) ** 2 * Qx
+        r2 = - np.linalg.norm(self.dot_error) ** 2 * Qv
+        # robust reward function
+        r1 -= np.linalg.norm(np.tanh(10 * self.error)) ** 2 * Qx
+        r2 -= np.linalg.norm(np.tanh(10 * self.dot_error)) ** 2 * Qv
+        r3 = - np.linalg.norm(self.current_action) ** 2 * R
+        '''二次型'''
         r4 = 0
         # 如果因为越界终止，则给剩余时间可能取得的最大惩罚
         if self.is_pos_out() or self.is_att_out():
@@ -126,7 +137,7 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         # 外环由RL控制给出
         self.pos_ctrl.control = action.copy()
         phi_d, theta_d, uf = self.uo_2_ref_angle_throttle()
-        phi_d = np.clip(phi_d, self.att_zone[0][0], self.att_zone[0][1])    # 姿态指令不能越界
+        phi_d = np.clip(phi_d, self.att_zone[0][0], self.att_zone[0][1])  # 姿态指令不能越界
         theta_d = np.clip(theta_d, self.att_zone[1][0], self.att_zone[1][1])
 
         # 计算内环控制所需参数
@@ -143,8 +154,8 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         a = np.concatenate(([uf], torque))  # 真实控制量
 
         self.update(action=a)
-        self.pos_ref, self.dot_pos_ref, _, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
-                                                       self.ref_bias_phase)
+        self.pos_ref, self.dot_pos_ref, self.dot2_pos_ref, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period,
+                                                                       self.ref_bias_a, self.ref_bias_phase)
         self.error = self.uav_pos() - self.pos_ref
         self.dot_error = self.uav_vel() - self.dot_pos_ref
 
@@ -198,8 +209,8 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         self.image = np.ones([self.height, self.width, 3], np.uint8) * 255
         self.image_copy = self.image.copy()
 
-        self.pos_ref, self.dot_pos_ref, _, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
-                                                       self.ref_bias_phase)
+        self.pos_ref, self.dot_pos_ref, self.dot2_pos_ref, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period,
+                                                                       self.ref_bias_a, self.ref_bias_phase)
         self.error = self.uav_pos() - self.pos_ref
         self.dot_error = self.uav_vel() - self.dot_pos_ref
         self.initial_state = self.state_norm()
@@ -221,8 +232,8 @@ class uav_tracking_outer_loop(rl_base, uav_pos_ctrl):
         self.generate_random_trajectory(is_random=True, outer_param=None)
         self.x, self.y, self.z = \
             self.set_random_init_pos(pos0=self.trajectory[0][0:3], r=0.3 * np.ones(3))  # 设置初始位置在轨迹第一个点附近
-        self.pos_ref, self.dot_pos_ref, _, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period, self.ref_bias_a,
-                                                       self.ref_bias_phase)
+        self.pos_ref, self.dot_pos_ref, self.dot2_pos_ref, _ = ref_uav(self.time, self.ref_amplitude, self.ref_period,
+                                                                       self.ref_bias_a, self.ref_bias_phase)
         self.error = self.uav_pos() - self.pos_ref
         self.dot_error = self.uav_vel() - self.dot_pos_ref
         self.initial_state = self.state_norm()

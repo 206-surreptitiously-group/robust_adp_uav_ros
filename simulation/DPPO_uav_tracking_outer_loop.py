@@ -204,7 +204,7 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, action_std, 'EvalPolicy',
                                            simulation_path)
         if RETRAIN:
-            agent.global_policy.load_state_dict(torch.load('Policy_PPO309'))
+            agent.global_policy.load_state_dict(torch.load('Policy_PPO106'))
             '''如果修改了奖励函数，则原来的critic网络已经不起作用了，需要重新初始化'''
             agent.global_policy.critic_reset_orthogonal()
         agent.global_policy.share_memory()
@@ -242,8 +242,8 @@ if __name__ == '__main__':
         agent.eval_policy = PPOActorCritic(agent.env.state_dim, agent.env.action_dim, 0.1,
                                            'EvalPolicy_ppo', simulation_path)
         # 加载模型参数文件
-        # agent.load_models(optPath + 'DPPO_uav_tracking_outer_loop/retrain2')
-        agent.load_models('Policy_PPO309')
+        agent.load_models(optPath + 'DPPO_uav_tracking_outer_loop/second-order-information/retrain1')
+        # agent.load_models('Policy_PPO86')
         agent.eval_policy.load_state_dict(agent.global_policy.state_dict())
         env.msg_print_flag = True
         test_num = 10
